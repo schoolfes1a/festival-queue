@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+
+    <meta charset="UTF-8">
+    <title>管理画面</title>
+
+    <link rel="stylesheet" href="style.css">
+
+</head>
+<body>
+
+    <h1>店員用 管理画面</h1>
+
+    <button onclick="newTicket()">
+        整理券発行
+    </button>
+
+    <button onclick="nextNumber()">
+        次の人を呼ぶ
+    </button>
+
+    <h2 id="current"></h2>
+
+    <h2 id="latest"></h2>
+
+    <h2 id="ticket"></h2>
+
+    <script>
+
+        async function updateStatus() {
+
+            const response =
+                await fetch('/status');
+
+            const data =
+                await response.json();
+
+            document.getElementById('current').textContent =
+                `現在: ${data.current}`;
+
+            document.getElementById('latest').textContent =
+                `最新整理券: ${data.latest}`;
+
+        }
+
+        async function newTicket() {
+
+            const response =
+                await fetch('/new-ticket');
+
+            const data =
+                await response.json();
+
+            document.getElementById('ticket').textContent =
+                `発行番号: ${data.ticket}`;
+
+            updateStatus();
+
+        }
+
+        async function nextNumber() {
+
+            await fetch('/next');
+
+            updateStatus();
+
+        }
+
+        updateStatus();
+
+        setInterval(updateStatus, 5000);
+
+    </script>
+
+</body>
+</html>

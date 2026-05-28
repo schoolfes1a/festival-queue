@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+
+    <meta charset="UTF-8">
+    <title>待ち状況</title>
+
+    <link rel="stylesheet" href="style.css">
+
+</head>
+<body>
+
+    <h1>文化祭 待ち状況</h1>
+
+    <div>
+        あなたの番号：
+        <input type="number" id="myNumber">
+    </div>
+
+    <br>
+
+    <button onclick="saveNumber()">
+        番号を保存
+    </button>
+
+    <h2 id="status">
+        読み込み中...
+    </h2>
+
+    <h3 id="wait"></h3>
+
+    <script>
+
+        let myNumber = localStorage.getItem('myNumber');
+
+        if (myNumber) {
+            document.getElementById('myNumber').value = myNumber;
+        }
+
+        function saveNumber() {
+
+            myNumber =
+                document.getElementById('myNumber').value;
+
+            localStorage.setItem('myNumber', myNumber);
+
+            updateStatus();
+
+        }
+
+        async function updateStatus() {
+
+            const response =
+                await fetch('/status');
+
+            const data =
+                await response.json();
+
+            const current =
+                data.current;
+
+            document.getElementById('status').textContent =
+                `現在呼び出し中: ${current}`;
+
+            if (myNumber) {
+
+                const remain =
+                    myNumber - current;
+
+                let text = '';
+
+                if (remain <= 0) {
+
+                    text = '呼び出し中です！';
+
+                }
+                else {
+
+                    const minutes =
+                        remain * 2;
+
+                    text =
+                        `あと${remain}人 / 約${minutes}分`;
+
+                }
+
+                document.getElementById('wait').textContent =
+                    text;
+
+            }
+
+        }
+
+        updateStatus();
+
+        setInterval(updateStatus, 5000);
+
+    </script>
+
+</body>
+</html>
