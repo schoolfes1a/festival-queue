@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>設定 - 1A文化祭</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="staff-page narrow">
+
+<div id="shell"></div>
+
+<main>
+
+  <!-- メニュー管理 -->
+  <section class="card">
+    <div class="card-header">
+      <h2>メニュー管理</h2>
+      <span class="muted" style="font-size:13px;">お客様画面と受付画面にすぐ反映されます</span>
+    </div>
+    <ul class="menu-list-view" id="menu-list"></ul>
+
+    <h2 style="margin-top:18px;">メニューを追加</h2>
+    <div class="inline-form">
+      <input type="text" id="new-name" placeholder="商品名">
+      <input type="number" id="new-price" placeholder="価格" style="max-width:130px;" inputmode="numeric">
+      <input type="text" id="new-desc" placeholder="説明（任意）">
+      <button id="add-btn" class="green">追加</button>
+    </div>
+  </section>
+
+  <!-- 整理券カウンター -->
+  <section class="card">
+    <div class="card-header">
+      <h2>整理券の発行番号（カウンター）</h2>
+    </div>
+    <p class="note">
+      次に「整理券を発行する」を押したときに発行される番号です。受付画面の<strong>呼び出し番号とは別の値</strong>です。
+      通常の営業中はここを触る必要はありません。
+    </p>
+    <div class="stat-row">
+      <div class="stat">
+        <div class="stat-value" id="next-ticket-display">1</div>
+        <div class="stat-label">次に発行する番号</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="current-number-display">-</div>
+        <div class="stat-label">現在の呼び出し番号</div>
+      </div>
+    </div>
+
+    <div class="inline-form" style="margin-top:14px;">
+      <input type="number" id="next-input" placeholder="次に発行する番号（例：15）" inputmode="numeric">
+      <button id="next-btn" class="ghost">この番号から発行する</button>
+    </div>
+    <div class="btn-row" style="margin-top:8px;">
+      <button id="reset-btn" class="red small">1番からリセットする</button>
+    </div>
+    <p class="note-warn">
+      ⚠ 番号を巻き戻すと、すでに発行済みの番号と重複したときに、そのお客様の注文データが新しい注文で上書きされます。
+      文化祭の開始前や、番号をやり直したいとき以外は使わないでください。
+    </p>
+  </section>
+
+</main>
+
+<!-- メニュー編集モーダル -->
+<div class="modal" id="edit-modal" hidden>
+  <div class="modal-box">
+    <h2>メニューを編集</h2>
+    <label for="edit-name">商品名</label>
+    <input type="text" id="edit-name">
+    <label for="edit-price" style="margin-top:8px;">価格</label>
+    <input type="number" id="edit-price" inputmode="numeric">
+    <label for="edit-desc" style="margin-top:8px;">説明（任意）</label>
+    <textarea id="edit-desc" rows="2"></textarea>
+    <div class="btn-row" style="margin-top:14px;">
+      <button id="edit-save" class="green" style="flex:1;">保存</button>
+      <button id="edit-close" class="ghost" style="flex:1;">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import {
+  db, requireStaff, mountShell, subscribeMenu, subscribeTicketState, subscribeOrders,
+  updateNavBadges, esc, yen, toast
+} from "./app.js";
+import {
+  collection, doc, addDoc, setDoc, updateDoc, deleteDoc, serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+import { logOperation } from "./logger.js";
+
+mountShell({ active: "settings", title: "設定" });
+
+let menuItems = [];
+let staffEmail = null;
+let latestTicket = 0;
+let editingId = null;
+
+requireStaff((user) => {
+  staffEmail = user.email;
+
+  subscribeMenu((items) => {
+    menuItems = items;
+    renderMenu();
+  });
+
+  subscribeTicketState((state) => {
+    latestTicket = state.latestTicket;
+    document.getElementById("next-ticket-display").textContent = latestTicket + 1;
+    document.getElementById("current-number-display").textContent =
+      state.currentNumber > 0 ? state.currentNumber : "-";
+  });
+
+  // タブのバッジを他ページと揃えるためだけに購読する
+  subscribeOrders((orders) => updateNavBadges(orders));
+});
+
+// ===== メニュー一覧 =====
+function renderMenu() {
+  const list = document.getElementById("menu-list");
+  list.innerHTML = "";
+
+  if (menuItems.length === 0) {
+    list.innerHTML = `<p class="empty">メニューがまだ登録されていません</p>`;
+    return;
+  }
+
+  menuItems.forEach((item) => {
+    const li = document.createElement("li");
+    li.innerHTML = `
+      <span>
+        <strong>${esc(item.name)}</strong> ${yen(item.price)}
+        ${item.description ? `<br><small class="muted">${esc(item.description)}</small>` : ""}
+      </span>
+      <span class="btn-row">
+        <button class="ghost small" data-edit="${item.id}">編集</button>
+        <button class="red small" data-delete="${item.id}">削除</button>
+      </span>
+    `;
+    list.appendChild(li);
+  });
+
+  const find = (id) => menuItems.find((m) => m.id === id);
+
+  list.querySelectorAll("[data-edit]").forEach((btn) =>
+    btn.addEventListener("click", () => openEdit(find(btn.dataset.edit))));
+
+  list.querySelectorAll("[data-delete]").forEach((btn) =>
+    btn.addEventListener("click", async () => {
+      const item = find(btn.dataset.delete);
+      if (!item) return;
+      if (!confirm(`「${item.name}」をメニューから削除しますか？\n（発行済みの注文の内容は変わりません）`)) return;
+      try {
+        await deleteDoc(doc(db, "menu", item.id));
+        logOperation(staffEmail, "メニュー削除", `${item.name}（¥${item.price}）`);
+        toast(`「${item.name}」を削除しました`);
+      } catch (e) {
+        console.error(e);
+        toast("削除に失敗しました", "err");
+      }
+    }));
+}
+
+// ===== 追加 =====
+document.getElementById("add-btn").addEventListener("click", async () => {
+  const nameEl = document.getElementById("new-name");
+  const priceEl = document.getElementById("new-price");
+  const descEl = document.getElementById("new-desc");
+  const name = nameEl.value.trim();
+  const price = Number(priceEl.value);
+  const description = descEl.value.trim();
+
+  if (!name || !Number.isFinite(price) || price <= 0) {
+    toast("商品名と1以上の価格を入力してください", "err");
+    return;
+  }
+
+  try {
+    await addDoc(collection(db, "menu"), { name, price, description, createdAt: serverTimestamp() });
+    logOperation(staffEmail, "メニュー追加", `${name}（¥${price}）`);
+    toast(`「${name}」を追加しました`);
+    nameEl.value = "";
+    priceEl.value = "";
+    descEl.value = "";
+    nameEl.focus();
+  } catch (e) {
+    console.error(e);
+    toast("追加に失敗しました", "err");
+  }
+});
+
+// ===== 編集モーダル =====
+function openEdit(item) {
+  if (!item) return;
+  editingId = item.id;
+  document.getElementById("edit-name").value = item.name || "";
+  document.getElementById("edit-price").value = item.price ?? "";
+  document.getElementById("edit-desc").value = item.description || "";
+  document.getElementById("edit-modal").hidden = false;
+}
+
+document.getElementById("edit-close").addEventListener("click", () => {
+  editingId = null;
+  document.getElementById("edit-modal").hidden = true;
+});
+
+document.getElementById("edit-save").addEventListener("click", async () => {
+  const before = menuItems.find((m) => m.id === editingId);
+  const name = document.getElementById("edit-name").value.trim();
+  const price = Number(document.getElementById("edit-price").value);
+  const description = document.getElementById("edit-desc").value.trim();
+
+  if (!name || !Number.isFinite(price) || price <= 0) {
+    toast("商品名と1以上の価格を入力してください", "err");
+    return;
+  }
+
+  try {
+    await updateDoc(doc(db, "menu", editingId), { name, price, description });
+    logOperation(
+      staffEmail, "メニュー編集",
+      before ? `${before.name}（¥${before.price}）→ ${name}（¥${price}）` : `${name}（¥${price}）`
+    );
+    toast("メニューを更新しました");
+    editingId = null;
+    document.getElementById("edit-modal").hidden = true;
+  } catch (e) {
+    console.error(e);
+    toast("保存に失敗しました", "err");
+  }
+});
+
+// ===== 整理券カウンター =====
+document.getElementById("next-btn").addEventListener("click", async () => {
+  const input = document.getElementById("next-input");
+  const val = Number(input.value);
+  if (!val || val < 1) {
+    toast("1以上の番号を入力してください", "err");
+    return;
+  }
+  if (val <= latestTicket) {
+    if (!confirm(`${val}番はすでに発行済みの番号です。\nこのまま次を${val}番から発行すると、既存の${val}番の注文データが上書きされる可能性があります。\n続けますか？`)) return;
+  } else if (!confirm(`次の整理券発行を${val}番からにします。よろしいですか？`)) {
+    return;
+  }
+
+  try {
+    await setDoc(doc(db, "state", "ticket"), { latestTicket: val - 1 }, { merge: true });
+    logOperation(staffEmail, "発行番号カウンターを指定", `次は${val}番から発行`);
+    toast(`次は${val}番から発行します`);
+    input.value = "";
+  } catch (e) {
+    console.error(e);
+    toast("更新に失敗しました", "err");
+  }
+});
+
+document.getElementById("reset-btn").addEventListener("click", async () => {
+  if (!confirm("整理券の発行番号を1番からリセットします。\nすでに発行済みの番号（1番、2番…）と重複すると、そのお客様の注文データが新しい注文で上書きされます。\n本当によろしいですか？")) return;
+  try {
+    await setDoc(doc(db, "state", "ticket"), { latestTicket: 0 }, { merge: true });
+    logOperation(staffEmail, "発行番号カウンターをリセット", "次は1番から発行");
+    toast("次は1番から発行します");
+  } catch (e) {
+    console.error(e);
+    toast("リセットに失敗しました", "err");
+  }
+});
+</script>
+
+</body>
+</html>

@@ -1,1 +1,9 @@
-node_modules
+# 秘密情報（絶対にコミットしない）
+serviceAccountKey.json
+staff-accounts.csv
+.env
+
+# ツールが生成するもの
+node_modules/
+.firebase/
+.vs/

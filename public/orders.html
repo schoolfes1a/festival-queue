@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>提供リスト - 1A文化祭</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="staff-page">
+
+<div id="shell"></div>
+
+<main>
+
+  <section class="card">
+    <div class="card-header">
+      <h2>提供リスト</h2>
+      <label style="display:flex; align-items:center; gap:6px; font-weight:600; font-size:13px; margin:0;">
+        <input type="checkbox" id="sound-toggle" style="width:auto;">
+        新しい注文が入ったら音で知らせる
+      </label>
+    </div>
+
+    <div class="tabbar" id="status-tabs">
+      <button type="button" class="tab-btn active" data-filter="entered">提供待ち <span class="tab-badge" data-count="entered" hidden>0</span></button>
+      <button type="button" class="tab-btn" data-filter="pending">未入店 <span class="tab-badge" data-count="pending" hidden>0</span></button>
+      <button type="button" class="tab-btn" data-filter="served">提供済み</button>
+      <button type="button" class="tab-btn" data-filter="cancelled">キャンセル</button>
+      <button type="button" class="tab-btn" data-filter="all">すべて</button>
+    </div>
+
+    <p class="note" id="filter-note"></p>
+    <div class="board" id="order-board"></div>
+  </section>
+
+</main>
+
+<!-- 注文編集モーダル -->
+<div class="modal" id="edit-modal" hidden>
+  <div class="modal-box">
+    <h2 id="edit-title">注文を編集</h2>
+    <div id="edit-items"></div>
+    <div class="inline-form" style="margin-top:10px;">
+      <select id="edit-add-select"></select>
+      <button type="button" id="edit-add-btn" class="green small">追加</button>
+    </div>
+    <div class="cart-total">
+      <span>合計</span>
+      <b id="edit-total">¥0</b>
+    </div>
+    <label for="edit-note" style="margin-top:8px;">備考</label>
+    <textarea id="edit-note" rows="2"></textarea>
+    <div class="btn-row" style="margin-top:14px;">
+      <button type="button" id="edit-save" class="green" style="flex:1;">保存</button>
+      <button type="button" id="edit-cancel" class="ghost" style="flex:1;">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import {
+  db, requireStaff, mountShell, subscribeOrders, subscribeMenu,
+  updateNavBadges, setOrderStatus, removeOrder,
+  esc, yen, calcTotal, itemsHtml, statusLabel, fmtClock, toast, beep,
+  createArrivalWatcher, formatItems
+} from "./app.js";
+import {
+  doc, updateDoc, serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+import { logOrder } from "./logger.js";
+
+mountShell({ active: "orders", title: "提供リスト" });
+
+let orders = [];
+let menuItems = [];
+let staffEmail = null;
+let filter = "entered";
+let editing = null;   // { id, ticketNumber, items, note }
+const newIds = new Set();
+
+// 「提供待ちに新しく入ってきた注文」だけを新着として扱う
+const detectNewEntered = createArrivalWatcher((o) => o.status === "entered");
+
+const soundToggle = document.getElementById("sound-toggle");
+soundToggle.checked = localStorage.getItem("ordersSound") === "on";
+soundToggle.addEventListener("change", () => {
+  localStorage.setItem("ordersSound", soundToggle.checked ? "on" : "off");
+  if (soundToggle.checked) beep(1); // 端末側で音が出せるかここで確認できる
+});
+
+const FILTER_NOTE = {
+  entered:   "入店済みで、まだ提供していない注文です。古い順（整理券番号の小さい順）に並びます。",
+  pending:   "まだ入店していない注文です。入店の受付は「受付」タブで行います。",
+  served:    "提供が終わった注文です。新しい順に並びます。",
+  cancelled: "キャンセルした注文です。",
+  all:       "すべての注文を新しい順に表示しています。",
+};
+
+requireStaff((user) => {
+  staffEmail = user.email;
+
+  subscribeMenu((items) => {
+    menuItems = items;
+    renderEditSelect();
+  });
+
+  subscribeOrders((list, snap) => {
+    orders = list;
+    const arrivals = detectNewEntered(snap);
+    arrivals.forEach((id) => {
+      newIds.add(id);
+      setTimeout(() => { newIds.delete(id); }, 8000);
+    });
+    if (arrivals.length > 0 && soundToggle.checked) beep(2);
+
+    updateNavBadges(orders);
+    renderCounts();
+    renderBoard();
+    if (editing) syncEditingFromServer();
+  });
+});
+
+// ===== フィルタ =====
+document.querySelectorAll("#status-tabs .tab-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    filter = btn.dataset.filter;
+    document.querySelectorAll("#status-tabs .tab-btn").forEach((b) =>
+      b.classList.toggle("active", b === btn));
+    renderBoard();
+  });
+});
+
+function renderCounts() {
+  document.querySelectorAll("[data-count]").forEach((el) => {
+    const n = orders.filter((o) => o.status === el.dataset.count).length;
+    el.textContent = n;
+    el.hidden = n === 0;
+  });
+}
+
+// ===== ボード描画 =====
+function visibleOrders() {
+  const list = filter === "all" ? orders.slice() : orders.filter((o) => o.status === filter);
+  // 提供待ち・未入店は「先に来た人から」なので昇順、それ以外は新しい順
+  if (filter === "entered" || filter === "pending") {
+    return list.sort((a, b) => Number(a.ticketNumber) - Number(b.ticketNumber));
+  }
+  return list.sort((a, b) => Number(b.ticketNumber) - Number(a.ticketNumber));
+}
+
+function actionsFor(order) {
+  const edit = `<button class="ghost small" data-edit="${order.id}">編集</button>`;
+  const del  = `<button class="red small" data-delete="${order.id}">削除</button>`;
+
+  if (order.status === "pending") {
+    return `<button class="green" data-status="entered" data-id="${order.id}">入店</button>${edit}
+            <button class="red small" data-status="cancelled" data-id="${order.id}" data-confirm="この注文をキャンセルしますか？">キャンセル</button>`;
+  }
+  if (order.status === "entered") {
+    return `<button class="green" data-status="served" data-id="${order.id}">提供済みにする</button>${edit}
+            <button class="ghost small" data-status="pending" data-id="${order.id}">未入店に戻す</button>
+            <button class="red small" data-status="cancelled" data-id="${order.id}" data-confirm="この注文をキャンセルしますか？">キャンセル</button>`;
+  }
+  if (order.status === "served") {
+    return `<button class="ghost small" data-status="entered" data-id="${order.id}">提供待ちに戻す</button>${edit}${del}`;
+  }
+  return `<button class="ghost small" data-status="pending" data-id="${order.id}">受付に戻す</button>${del}`;
+}
+
+function renderBoard() {
+  const board = document.getElementById("order-board");
+  document.getElementById("filter-note").textContent = FILTER_NOTE[filter] || "";
+
+  const list = visibleOrders();
+  board.innerHTML = "";
+
+  if (list.length === 0) {
+    board.innerHTML = `<p class="empty">対象の注文はありません</p>`;
+    return;
+  }
+
+  list.forEach((order) => {
+    const card = document.createElement("div");
+    card.className = `order-card is-${order.status}${newIds.has(order.id) ? " is-new" : ""}`;
+    card.innerHTML = `
+      <div class="order-head">
+        <div class="order-num">${esc(order.ticketNumber)}<small>番</small></div>
+        <div class="order-meta">
+          ${statusLabel(order.status)}<br>${fmtClock(order.createdAt)}
+        </div>
+      </div>
+      <div class="order-items">${itemsHtml(order.items)}</div>
+      ${order.note ? `<div class="order-note">${esc(order.note)}</div>` : ""}
+      <div class="order-total">${yen(calcTotal(order.items))}</div>
+      <div class="order-actions">${actionsFor(order)}</div>
+    `;
+    board.appendChild(card);
+  });
+
+  attachBoardEvents(board);
+}
+
+function attachBoardEvents(board) {
+  const find = (id) => orders.find((o) => o.id === id);
+
+  board.querySelectorAll("[data-status]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const order = find(btn.dataset.id);
+      if (!order) return;
+      if (btn.dataset.confirm && !confirm(`${order.ticketNumber}番：${btn.dataset.confirm}`)) return;
+      setOrderStatus(order, btn.dataset.status, staffEmail);
+    });
+  });
+
+  board.querySelectorAll("[data-delete]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const order = find(btn.dataset.delete);
+      if (!order) return;
+      if (confirm(`${order.ticketNumber}番の注文を完全に削除します。元に戻せません。よろしいですか？`)) {
+        removeOrder(order, staffEmail);
+      }
+    });
+  });
+
+  board.querySelectorAll("[data-edit]").forEach((btn) => {
+    btn.addEventListener("click", () => openEdit(find(btn.dataset.edit)));
+  });
+}
+
+// ===== 編集モーダル =====
+function renderEditSelect() {
+  const select = document.getElementById("edit-add-select");
+  select.innerHTML = "";
+  menuItems.forEach((m) => {
+    const opt = document.createElement("option");
+    opt.value = m.id;
+    opt.textContent = `${m.name}（${yen(m.price)}）`;
+    select.appendChild(opt);
+  });
+}
+
+function openEdit(order) {
+  if (!order) return;
+  editing = {
+    id: order.id,
+    ticketNumber: order.ticketNumber,
+    items: (order.items || []).map((i) => ({ ...i })),
+    note: order.note || "",
+  };
+  document.getElementById("edit-title").textContent = `${order.ticketNumber}番の注文を編集`;
+  document.getElementById("edit-note").value = editing.note;
+  document.getElementById("edit-modal").hidden = false;
+  renderEditItems();
+}
+
+// 編集中に他のスタッフがその注文を消した場合、開きっぱなしにしない
+function syncEditingFromServer() {
+  if (!orders.some((o) => o.id === editing.id)) {
+    closeEdit();
+    toast("編集中の注文が他の端末で削除されました", "err");
+  }
+}
+
+function renderEditItems() {
+  const wrap = document.getElementById("edit-items");
+  wrap.innerHTML = "";
+
+  if (editing.items.length === 0) {
+    wrap.innerHTML = `<p class="empty">商品がありません</p>`;
+  } else {
+    editing.items.forEach((item, idx) => {
+      const row = document.createElement("div");
+      row.className = "cart-row";
+      row.innerHTML = `
+        <span>${esc(item.name)}<br><small class="muted">${yen(item.price)} × ${item.qty} = ${yen(item.price * item.qty)}</small></span>
+        <span class="qty-ctrl">
+          <button type="button" class="gray" data-minus="${idx}">−</button>
+          <span class="cart-qty">${item.qty}</span>
+          <button type="button" class="gray" data-plus="${idx}">＋</button>
+        </span>
+      `;
+      wrap.appendChild(row);
+    });
+
+    wrap.querySelectorAll("[data-plus]").forEach((b) =>
+      b.addEventListener("click", () => { editing.items[Number(b.dataset.plus)].qty += 1; renderEditItems(); }));
+    wrap.querySelectorAll("[data-minus]").forEach((b) =>
+      b.addEventListener("click", () => {
+        const idx = Number(b.dataset.minus);
+        editing.items[idx].qty -= 1;
+        if (editing.items[idx].qty <= 0) editing.items.splice(idx, 1);
+        renderEditItems();
+      }));
+  }
+
+  document.getElementById("edit-total").textContent = yen(calcTotal(editing.items));
+}
+
+document.getElementById("edit-add-btn").addEventListener("click", () => {
+  const id = document.getElementById("edit-add-select").value;
+  const item = menuItems.find((m) => m.id === id);
+  if (!item) return;
+  const existing = editing.items.find((i) => i.itemId === item.id);
+  if (existing) {
+    existing.qty += 1;
+  } else {
+    editing.items.push({ itemId: item.id, name: item.name, price: Number(item.price), qty: 1 });
+  }
+  renderEditItems();
+});
+
+document.getElementById("edit-save").addEventListener("click", async () => {
+  const note = document.getElementById("edit-note").value.trim();
+  const btn = document.getElementById("edit-save");
+  btn.disabled = true;
+  try {
+    await updateDoc(doc(db, "orders", editing.id), {
+      items: editing.items,
+      note,
+      updatedAt: serverTimestamp(),
+    });
+    logOrder(
+      staffEmail, editing.ticketNumber, "内容編集",
+      formatItems(editing.items) + (note ? ` / 備考:${note}` : "")
+    );
+    toast(`${editing.ticketNumber}番の注文を更新しました`);
+    closeEdit();
+  } catch (e) {
+    console.error(e);
+    toast("保存に失敗しました", "err");
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+document.getElementById("edit-cancel").addEventListener("click", closeEdit);
+
+function closeEdit() {
+  editing = null;
+  document.getElementById("edit-modal").hidden = true;
+}
+</script>
+
+</body>
+</html>

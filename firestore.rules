@@ -1,0 +1,49 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isStaff() {
+      return request.auth != null
+        && request.auth.token.email.matches('.*@musashi[.]local$');
+    }
+
+    match /menu/{itemId} {
+      allow read: if true;
+      allow write: if isStaff();
+    }
+
+    match /orders/{orderId} {
+      allow read: if true;
+      allow write: if isStaff();
+    }
+
+    match /state/{docId} {
+      allow read: if true;
+      allow write: if isStaff();
+    }
+
+    // ログイン試行ログ：失敗時は未認証状態なので誰でも書き込み可能にする（読み取りはスタッフのみ）
+    match /log_login/{id} {
+      allow create: if true;
+      allow read: if isStaff();
+    }
+
+    // お客様ページのアクセスログ：閲覧者は未認証なので誰でも書き込み可能にする
+    match /log_access/{id} {
+      allow create: if true;
+      allow read: if isStaff();
+    }
+
+    // 操作ログ・注文ログ：スタッフの操作のみ記録するので書き込みもスタッフに限定
+    match /log_operation/{id} {
+      allow create: if isStaff();
+      allow read: if isStaff();
+    }
+
+    match /log_order/{id} {
+      allow create: if isStaff();
+      allow read: if isStaff();
+    }
+  }
+}

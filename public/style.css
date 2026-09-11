@@ -1,46 +1,631 @@
+/* ============================================================
+   1A文化祭 共通スタイル
+   1. 変数・土台
+   2. 汎用パーツ（ボタン・フォーム・カード・テーブル）
+   3. スタッフ画面の共通シェル（ヘッダー・タブ）
+   4. 注文カード / ボード
+   5. 受付（メニュー選択・カート）
+   6. お客様画面
+   7. ログ画面
+   8. スマホ幅の調整
+   ============================================================ */
+
+/* ===== 1. 変数・土台 ===== */
+:root {
+  --bg: #f2f4f7;
+  --surface: #fff;
+  --line: #e2e6ec;
+  --text: #1f2733;
+  --muted: #6b7683;
+  --brand: #2e8b57;
+  --brand-dark: #24704a;
+  --danger: #c0392b;
+  --danger-dark: #9c2d20;
+  --warn: #d68a00;
+  --info: #2b6cb0;
+  --gray: #7c8797;
+  --gray-dark: #626c7a;
+  --radius: 12px;
+  --shadow: 0 1px 3px rgba(16, 24, 40, 0.08), 0 1px 2px rgba(16, 24, 40, 0.04);
+  /* ページの最大幅。お客様画面は読みやすさ優先で狭いまま、
+     スタッフ画面は画面いっぱいまで使う。 */
+  --page-max: 960px;
+}
+
+.staff-page { --page-max: 1640px; }
+/* 入力フォーム中心のページは、広げすぎると逆に見づらいので抑える */
+.staff-page.narrow { --page-max: 1040px; }
+
+* { box-sizing: border-box; }
+
 body {
-
-    font-family: sans-serif;
-    text-align: center;
-    margin-top: 50px;
-    background: #f5f5f5;
-
+  font-family: system-ui, -apple-system, "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif;
+  margin: 0;
+  padding: 20px;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
 }
 
-h1 {
+h1 { font-size: 24px; margin: 0; }
+h2 { font-size: 18px; margin: 0 0 12px; }
 
-    font-size: 40px;
+.muted { color: var(--muted); }
+.text-link { font-size: 13px; color: var(--muted); text-decoration: none; }
+.text-link:hover { text-decoration: underline; }
 
-}
+/* 認証確認が終わるまで中身を出さない（ログイン画面への一瞬のちらつき防止） */
+.staff-page main { display: none; }
+.staff-page.is-ready main { display: block; }
 
-h2 {
-
-    font-size: 60px;
-
-}
-
+/* ===== 2. 汎用パーツ ===== */
 button {
+  font-size: 15px;
+  font-weight: 600;
+  padding: 11px 18px;
+  margin: 0;
+  border: none;
+  border-radius: 8px;
+  background: #333;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+button:hover { background: #4a4a4a; }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
 
-    font-size: 30px;
-    padding: 20px;
-    margin: 10px;
+button.small { font-size: 13px; padding: 7px 12px; }
+button.big { font-size: 18px; padding: 16px 22px; }
+button.block { width: 100%; }
 
+button.green { background: var(--brand); }
+button.green:hover { background: var(--brand-dark); }
+button.red { background: var(--danger); }
+button.red:hover { background: var(--danger-dark); }
+button.gray { background: var(--gray); }
+button.gray:hover { background: var(--gray-dark); }
+button.ghost {
+  background: #fff;
+  color: var(--text);
+  border: 1px solid var(--line);
+}
+button.ghost:hover { background: #f4f6f9; }
+
+input, select, textarea {
+  font-size: 15px;
+  font-family: inherit;
+  padding: 10px;
+  border: 1px solid #ccd2da;
+  border-radius: 8px;
+  width: 100%;
+  background: #fff;
+  color: var(--text);
+}
+input:focus, select:focus, textarea:focus {
+  outline: 2px solid rgba(46, 139, 87, 0.35);
+  border-color: var(--brand);
+}
+label { font-size: 14px; font-weight: 600; display: block; margin-bottom: 4px; }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin: 0 auto 16px;
+  max-width: var(--page-max);
+  box-shadow: var(--shadow);
+}
+.card-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.card-header h2 { margin: 0; }
+
+.login-card { max-width: 380px; margin-top: 60px; }
+.error { color: var(--danger); font-weight: bold; }
+
+.note {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0 0 12px;
+}
+.note-warn {
+  font-size: 13px;
+  color: #8a5300;
+  background: #fff6e5;
+  border: 1px solid #f5dda8;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 10px 0 0;
 }
 
-.red {
-
-    color: red;
-
+.big-number {
+  font-size: 76px;
+  font-weight: 800;
+  line-height: 1.05;
+  text-align: center;
+  margin: 6px 0;
+  color: var(--danger);
+  font-variant-numeric: tabular-nums;
+  min-height: 84px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.orange {
-
-    color: orange;
-
+/* 番号が未設定のとき。「－」が1本だけ浮くと壊れて見えるので、
+   文章に切り替えて余白も詰める。 */
+.big-number.is-empty {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--muted);
+  min-height: 56px;
 }
 
-.green {
+.inline-form {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.inline-form input, .inline-form select { width: auto; flex: 1; min-width: 130px; }
 
-    color: green;
+.btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
 
+table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+th, td {
+  border-bottom: 1px solid var(--line);
+  padding: 9px 8px;
+  text-align: left;
+  font-size: 14px;
+  vertical-align: top;
+}
+th { background: #f7f9fb; font-size: 13px; color: var(--muted); }
+
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; margin-top: 10px; }
+.table-scroll table { margin-top: 0; }
+
+.status-pending   { color: var(--warn);   font-weight: 700; }
+.status-entered   { color: var(--info);   font-weight: 700; }
+.status-served    { color: var(--brand);  font-weight: 700; }
+.status-cancelled { color: var(--muted);  text-decoration: line-through; }
+
+/* 空状態。ただの余白だと「壊れている」ように見えるので、
+   破線の枠で「いま空である」ことを意図的に見せる。
+   ログ画面の <td class="empty"> には枠を付けないよう、箱にするのは
+   カート／ボードの中だけに限定する。 */
+.empty {
+  text-align: center;
+  color: var(--muted);
+  padding: 18px 10px;
+  font-size: 13px;
+  margin: 0;
+}
+
+.board .empty,
+.menu-grid .empty,
+#cart-list .empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 92px;
+  background: #fafbfc;
+  border: 1px dashed #d9dfe6;
+  border-radius: 10px;
+}
+.board .empty,
+.menu-grid .empty { grid-column: 1 / -1; }
+
+/* ===== 3. スタッフ画面の共通シェル ===== */
+.topbar {
+  max-width: var(--page-max);
+  margin: 0 auto 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.topbar-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+.staff-chip {
+  font-size: 13px;
+  font-weight: 700;
+  background: #e8eef5;
+  color: #37475c;
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+.tabbar { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+.page-tabbar { max-width: var(--page-max); margin: 0 auto 16px; }
+
+.tabbar a.tab-link, .tabbar button.tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid var(--line);
+  color: var(--text);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tabbar a.tab-link:hover, .tabbar button.tab-btn:hover { background: #eef1f5; }
+.tabbar a.tab-link.active, .tabbar button.tab-btn.active {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
+}
+
+.tab-badge {
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+}
+.tab-link.active .tab-badge { background: #fff; color: var(--brand); }
+
+/* ===== 4. 注文カード / ボード ===== */
+.board {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+}
+
+.order-card {
+  border: 1px solid var(--line);
+  border-left: 5px solid var(--gray);
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.order-card.is-pending  { border-left-color: var(--warn); }
+.order-card.is-entered  { border-left-color: var(--info); }
+.order-card.is-served   { border-left-color: var(--brand); }
+.order-card.is-cancelled { border-left-color: #c9ced6; background: #fafbfc; }
+
+/* 呼び出し番号を過ぎたのに未入店＝取りこぼし候補 */
+.order-card.is-overdue {
+  border-left-color: var(--danger);
+  background: #fff6f5;
+}
+
+/* 新着ハイライト */
+@keyframes flash-in {
+  0%   { box-shadow: 0 0 0 4px rgba(46, 139, 87, 0.55); }
+  100% { box-shadow: 0 0 0 4px rgba(46, 139, 87, 0); }
+}
+.order-card.is-new { animation: flash-in 2.2s ease-out 2; }
+
+.order-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.order-num {
+  font-size: 34px;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.order-num small { font-size: 14px; font-weight: 600; color: var(--muted); }
+.order-meta { text-align: right; font-size: 12px; color: var(--muted); }
+
+.order-items { display: flex; flex-wrap: wrap; gap: 6px; }
+.item-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #eef2f7;
+  border-radius: 6px;
+  padding: 4px 9px;
+  font-size: 14px;
+}
+.item-chip b { font-size: 15px; }
+
+.order-note {
+  font-size: 13px;
+  background: #fff8e1;
+  border: 1px solid #f0e0ac;
+  border-radius: 6px;
+  padding: 6px 9px;
+}
+
+.order-total { font-size: 15px; font-weight: 700; }
+.order-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.order-actions button { flex: 1 1 auto; min-width: 92px; }
+
+.overdue-flag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--danger);
+  border-radius: 4px;
+  padding: 2px 7px;
+}
+
+/* ===== 5. 受付（メニュー選択・カート） ===== */
+.split {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 1fr 1fr;
+  max-width: var(--page-max);
+  margin: 0 auto 16px;
+}
+.split > .card { margin: 0; max-width: none; }
+
+/* 受付ページの3カラム
+   左：呼び出し番号と状況 ／ 中央：注文受付 ／ 右：入店管理
+   入店管理は常に画面の右端に置き、注文を取りながら横目で見られるようにする。 */
+.reception-layout {
+  display: grid;
+  gap: 16px;
+  align-items: start;
+  max-width: var(--page-max);
+  margin: 0 auto;
+  grid-template-columns: minmax(280px, 330px) minmax(0, 1fr) minmax(330px, 430px);
+}
+.reception-layout .col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.reception-layout .col > .card { margin: 0; max-width: none; }
+
+/* 右カラムは中身が増えても画面内で完結するよう、単独でスクロールさせる */
+.reception-layout .col-right { position: sticky; top: 20px; }
+.reception-layout .col-right .board {
+  max-height: calc(100vh - 190px);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+/* 3カラムが窮屈になったら、入店管理を下段に回して横幅いっぱいに使う */
+@media (max-width: 1360px) {
+  .reception-layout { grid-template-columns: minmax(260px, 320px) minmax(0, 1fr); }
+  .reception-layout .col-right { grid-column: 1 / -1; position: static; }
+  .reception-layout .col-right .board { max-height: none; overflow-y: visible; }
+}
+
+@media (max-width: 900px) {
+  .reception-layout { grid-template-columns: 1fr; }
+  .reception-layout .col-right { grid-column: auto; }
+}
+
+/* 狭い列に入れても等幅で並ぶよう、flex ではなく grid で折り返す */
+.stat-row {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(78px, 1fr));
+}
+.stat {
+  min-width: 0;
+  background: #f7f9fb;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px;
+  text-align: center;
+}
+.stat-value {
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.stat-label { font-size: 12px; color: var(--muted); }
+
+.menu-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+  margin: 10px 0;
+}
+.menu-item-btn {
+  background: #fff;
+  color: var(--text);
+  border: 2px solid #d6dce4;
+  border-radius: 10px;
+  padding: 14px 10px;
+  text-align: center;
+  font-size: 15px;
+  line-height: 1.35;
+}
+.menu-item-btn:hover { background: #f1f5f9; border-color: var(--brand); }
+.menu-item-btn span { display: block; font-size: 13px; color: var(--muted); font-weight: 600; }
+
+.cart-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px solid var(--line);
+  padding: 8px 0;
+}
+.cart-row .qty-ctrl { display: flex; align-items: center; gap: 6px; }
+.cart-row .qty-ctrl button { min-width: 40px; }
+.cart-qty { min-width: 28px; text-align: center; font-weight: 700; font-size: 17px; }
+
+.cart-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 12px 0 4px;
+  font-size: 16px;
+  font-weight: 700;
+}
+.cart-total b { font-size: 28px; color: var(--danger); }
+
+/* モーダル */
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(16, 24, 40, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 16px;
+}
+.modal[hidden] { display: none; }
+.modal-box {
+  background: #fff;
+  border-radius: var(--radius);
+  padding: 22px;
+  max-width: 420px;
+  width: 100%;
+  max-height: 88vh;
+  overflow-y: auto;
+}
+
+/* トースト */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translate(-50%, 20px);
+  background: #1f2733;
+  color: #fff;
+  padding: 12px 20px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s, transform 0.2s;
+  z-index: 200;
+  max-width: 90vw;
+  text-align: center;
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+.toast-err { background: var(--danger); }
+
+/* ===== 6. お客様画面 ===== */
+.site-title {
+  text-align: center;
+  font-size: 30px;
+  margin: 10px 0 20px;
+  color: var(--text);
+}
+.now-card { text-align: center; }
+.now-card .big-number { font-size: 96px; }
+/* 同じ詳細度なので、空状態は必ずこちらが後に来るように書く */
+.now-card .big-number.is-empty { font-size: 17px; }
+.now-label { font-size: 15px; color: var(--muted); font-weight: 600; }
+
+.wait-row {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+.wait-box {
+  flex: 1 1 140px;
+  max-width: 220px;
+  background: #f7f9fb;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px 10px;
+}
+.wait-value {
+  font-size: 34px;
+  font-weight: 800;
+  color: var(--warn);
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+.wait-value small { font-size: 16px; }
+.wait-label { font-size: 13px; color: var(--muted); }
+
+.menu-detail-list { list-style: none; padding: 0; margin: 0; }
+.menu-detail-list li { border-bottom: 1px solid var(--line); padding: 12px 4px; }
+.menu-detail-list li:last-child { border-bottom: none; }
+.menu-detail-main { display: flex; justify-content: space-between; gap: 12px; font-size: 16px; }
+.menu-detail-name { font-weight: 700; }
+.menu-detail-price { font-weight: 700; white-space: nowrap; }
+.menu-detail-desc { font-size: 13px; color: var(--muted); margin-top: 2px; }
+
+.menu-list-view { list-style: none; padding: 0; margin: 0; }
+.menu-list-view li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 4px;
+  border-bottom: 1px solid var(--line);
+}
+
+.footer-login { text-align: center; margin: 30px 0 10px; }
+.footer-login a { font-size: 12px; color: #a3aab4; text-decoration: none; }
+.footer-login a:hover { text-decoration: underline; }
+
+.back-home-link { display: block; font-size: 13px; color: var(--muted); text-decoration: none; margin-bottom: 12px; }
+.back-home-link:hover { text-decoration: underline; }
+
+.updated-note { text-align: center; font-size: 12px; color: #a3aab4; margin-top: 6px; }
+
+/* ===== 7. ログ画面 ===== */
+.log-detail { max-width: 340px; word-break: break-word; }
+.log-ua {
+  display: inline-block;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+  font-size: 12px;
+  color: var(--muted);
+}
+.log-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.log-count { font-size: 13px; color: var(--muted); }
+
+/* ===== 8. スマホ幅（760px以下） ===== */
+@media (max-width: 760px) {
+  .split { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 600px) {
+  body { padding: 12px; }
+  h1 { font-size: 20px; }
+  h2 { font-size: 16px; }
+  .card { padding: 14px; }
+  .big-number { font-size: 56px; }
+  .now-card .big-number { font-size: 72px; }
+
+  .topbar { align-items: flex-start; }
+  .topbar-right { width: 100%; }
+
+  .tabbar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
+  }
+  .tabbar a.tab-link, .tabbar button.tab-btn { flex: 0 0 auto; }
+
+  .table-scroll table { min-width: 520px; }
+  .board { grid-template-columns: 1fr; }
+  .menu-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+  .log-toolbar { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .order-actions button { flex: 1 1 100%; }
 }

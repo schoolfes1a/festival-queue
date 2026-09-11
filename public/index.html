@@ -1,101 +1,102 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-
-    <meta charset="UTF-8">
-    <title>待ち状況</title>
-
-    <link rel="stylesheet" href="style.css">
-
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>1A文化祭 お客様用ページ</title>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-    <h1>文化祭 待ち状況</h1>
+<h1 class="site-title">1A文化祭</h1>
 
-    <div>
-        あなたの番号：
-        <input type="number" id="myNumber">
+<div class="card now-card">
+  <div class="now-label">ただいまお呼びしている番号</div>
+  <div class="big-number is-empty" id="current-number-display">読み込み中…</div>
+
+  <div class="wait-row">
+    <div class="wait-box">
+      <div class="wait-value" id="waiting-count">-<small>人</small></div>
+      <div class="wait-label">お待ちの人数</div>
     </div>
+    <div class="wait-box">
+      <div class="wait-value" id="latest-ticket">-<small>番</small></div>
+      <div class="wait-label">最後にお渡しした整理券</div>
+    </div>
+  </div>
 
-    <br>
+  <p class="note" style="margin:14px 0 0;">
+    お手元の整理券の番号が呼ばれるまで、しばらくお待ちください。
+  </p>
+  <p class="updated-note">この画面は自動で更新されます</p>
+</div>
 
-    <button onclick="saveNumber()">
-        番号を保存
-    </button>
+<div class="card">
+  <h2>メニュー</h2>
+  <ul class="menu-detail-list" id="menu-view-list"></ul>
+</div>
 
-    <h2 id="status">
-        読み込み中...
-    </h2>
+<div class="footer-login">
+  <a href="login.html">スタッフの方はこちら</a>
+</div>
 
-    <h3 id="wait"></h3>
+<script type="module">
+import { db } from "./firebase-config.js";
+import {
+  doc, collection, onSnapshot, query, orderBy
+} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+import { logAccess } from "./logger.js";
 
-    <script>
+logAccess("index.html");
 
-        let myNumber = localStorage.getItem('myNumber');
+function esc(s) {
+  const div = document.createElement("div");
+  div.textContent = s == null ? "" : String(s);
+  return div.innerHTML;
+}
 
-        if (myNumber) {
-            document.getElementById('myNumber').value = myNumber;
-        }
+// ===== 呼び出し番号・お待ちの人数 =====
+// 待ち人数は「お渡し済みの整理券 − いま呼んでいる番号」で求める（整理券1枚＝1人として数える）。
+// 注文コレクションを読まずに済むので、お客様の端末に他の方の注文内容が
+// 一切ダウンロードされず、通信量も最小限で済む。
+onSnapshot(doc(db, "state", "ticket"), (snap) => {
+  const data = snap.data() || {};
+  const current = Number(data.currentNumber || 0);
+  const latest = Number(data.latestTicket || 0);
+  const waiting = Math.max(0, latest - current);
 
-        function saveNumber() {
+  const numEl = document.getElementById("current-number-display");
+  numEl.textContent = current > 0 ? current : "準備中です";
+  numEl.classList.toggle("is-empty", current <= 0);
+  document.getElementById("latest-ticket").innerHTML =
+    latest > 0 ? `${latest}<small>番</small>` : `-<small>番</small>`;
+  document.getElementById("waiting-count").innerHTML = `${waiting}<small>人</small>`;
+});
 
-            myNumber =
-                document.getElementById('myNumber').value;
+// ===== メニュー一覧 =====
+onSnapshot(query(collection(db, "menu"), orderBy("name")), (snap) => {
+  const list = document.getElementById("menu-view-list");
+  list.innerHTML = "";
 
-            localStorage.setItem('myNumber', myNumber);
+  if (snap.empty) {
+    list.innerHTML = `<li class="empty">準備中です</li>`;
+    return;
+  }
 
-            updateStatus();
-
-        }
-
-        async function updateStatus() {
-
-            const response =
-                await fetch('/status');
-
-            const data =
-                await response.json();
-
-            const current =
-                data.current;
-
-            document.getElementById('status').textContent =
-                `現在呼び出し中: ${current}`;
-
-            if (myNumber) {
-
-                const remain =
-                    myNumber - current;
-
-                let text = '';
-
-                if (remain <= 0) {
-
-                    text = '呼び出し中です！';
-
-                }
-                else {
-
-                    const minutes =
-                        remain * 2;
-
-                    text =
-                        `あと${remain}人 / 約${minutes}分`;
-
-                }
-
-                document.getElementById('wait').textContent =
-                    text;
-
-            }
-
-        }
-
-        updateStatus();
-
-        setInterval(updateStatus, 5000);
-
-    </script>
+  snap.docs.forEach((d) => {
+    const item = d.data();
+    const li = document.createElement("li");
+    li.innerHTML = `
+      <div class="menu-detail-main">
+        <span class="menu-detail-name">${esc(item.name)}</span>
+        <span class="menu-detail-price">¥${esc(item.price)}</span>
+      </div>
+      ${item.description ? `<div class="menu-detail-desc">${esc(item.description)}</div>` : ""}
+    `;
+    list.appendChild(li);
+  });
+});
+</script>
 
 </body>
 </html>

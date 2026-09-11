@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>スタッフログイン - 1A文化祭</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="card login-card">
+  <a href="index.html" class="back-home-link">← ホームに戻る</a>
+  <h1>スタッフログイン</h1>
+  <!-- Chrome のパスワード保存・自動入力に対応させるための約束ごと：
+       ・ユーザー名欄は type="text"（type="number" だと Chrome が
+         ユーザー名フィールドとして認識せず、保存も自動入力もされない）
+       ・name 属性と autocomplete 属性を必ず付ける
+       ・パスワード欄は autocomplete="current-password"
+       数字だけ入れたいので inputmode と pattern で入力を誘導する。 -->
+  <form id="login-form">
+    <label for="staff-number">スタッフ番号（1〜40）</label>
+    <input type="text" id="staff-number" name="username"
+           autocomplete="username"
+           inputmode="numeric" pattern="[0-9０-９]{1,2}" maxlength="2"
+           enterkeyhint="next" required>
+    <label for="password" style="margin-top:10px;">パスワード</label>
+    <input type="password" id="password" name="password"
+           autocomplete="current-password"
+           enterkeyhint="go" required>
+    <button type="submit" class="green block">ログイン</button>
+  </form>
+  <p id="error-msg" class="error"></p>
+</div>
+
+<script type="module">
+import { auth, STAFF_EMAIL_DOMAIN } from "./firebase-config.js";
+import {
+  signInWithEmailAndPassword,
+  onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import { logLogin } from "./logger.js";
+
+let isSubmitting = false;
+
+onAuthStateChanged(auth, (user) => {
+  // ログインフォームからの遷移処理中は、ここでの自動遷移と競合しないようにする
+  if (user && !isSubmitting) {
+    window.location.href = "reception.html";
+  }
+});
+
+// 入力欄が type="text" になったので、全角数字（１１など）でも通るようにする。
+// 「01」のような書き方も Number で 1 に揃え、staff01@… で失敗しないようにする。
+function parseStaffNumber(value) {
+  const half = String(value).trim()
+    .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+  if (!/^\d+$/.test(half)) return null;
+  const n = Number(half);
+  return n >= 1 && n <= 40 ? n : null;
+}
+
+document.getElementById("login-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const errorMsg = document.getElementById("error-msg");
+  errorMsg.textContent = "";
+
+  const num = parseStaffNumber(document.getElementById("staff-number").value);
+  if (num === null) {
+    errorMsg.textContent = "スタッフ番号は1〜40の数字で入力してください。";
+    return;
+  }
+
+  isSubmitting = true;
+  const password = document.getElementById("password").value;
+  const email = `staff${num}@${STAFF_EMAIL_DOMAIN}`;
+  const btn = e.target.querySelector('button[type="submit"]');
+  btn.disabled = true;
+
+  try {
+    await signInWithEmailAndPassword(auth, email, password);
+    await logLogin(num, "success"); // 書き込み完了を待ってから遷移する
+    window.location.href = "reception.html";
+  } catch (err) {
+    isSubmitting = false;
+    btn.disabled = false;
+    await logLogin(num, "failure"); // こちらも書き込み完了を待つ
+    errorMsg.textContent = "ログインに失敗しました。番号かパスワードを確認してください。";
+  }
+});
+</script>
+
+</body>
+</html>
