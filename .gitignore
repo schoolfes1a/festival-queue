@@ -7,3 +7,7 @@ staff-accounts.csv
 node_modules/
 .firebase/
 .vs/
+
+# Chrome にインポートする認証情報（絶対にコミットしない）
+chrome-passwords*.csv
+*-passwords.csv
