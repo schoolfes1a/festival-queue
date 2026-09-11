@@ -23,6 +23,7 @@
   --danger-dark: #9c2d20;
   --warn: #d68a00;
   --info: #2b6cb0;
+  --enter: #7c3aed;
   --gray: #7c8797;
   --gray-dark: #626c7a;
   --radius: 12px;
@@ -190,10 +191,16 @@ th { background: #f7f9fb; font-size: 13px; color: var(--muted); }
 .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; margin-top: 10px; }
 .table-scroll table { margin-top: 0; }
 
-.status-pending   { color: var(--warn);   font-weight: 700; }
-.status-entered   { color: var(--info);   font-weight: 700; }
+/* 工程ごとの色。受付→購入→入店→提供 の順に進む。 */
+.status-issued    { color: var(--muted);  font-weight: 700; }
+.status-called    { color: var(--danger); font-weight: 700; }
+.status-purchased { color: var(--info);   font-weight: 700; }
+.status-entered   { color: var(--enter);  font-weight: 700; }
 .status-served    { color: var(--brand);  font-weight: 700; }
+.status-skipped   { color: var(--warn);   font-weight: 700; }
 .status-cancelled { color: var(--muted);  text-decoration: line-through; }
+/* 旧データ用 */
+.status-pending   { color: var(--muted);  font-weight: 700; }
 
 /* 空状態。ただの余白だと「壊れている」ように見えるので、
    破線の枠で「いま空である」ことを意図的に見せる。
@@ -295,10 +302,14 @@ th { background: #f7f9fb; font-size: 13px; color: var(--muted); }
   flex-direction: column;
   gap: 8px;
 }
-.order-card.is-pending  { border-left-color: var(--warn); }
-.order-card.is-entered  { border-left-color: var(--info); }
-.order-card.is-served   { border-left-color: var(--brand); }
+.order-card.is-issued    { border-left-color: #c9ced6; }
+.order-card.is-called    { border-left-color: var(--danger); background: #fff6f5; }
+.order-card.is-purchased { border-left-color: var(--info); }
+.order-card.is-entered   { border-left-color: var(--enter); }
+.order-card.is-served    { border-left-color: var(--brand); }
+.order-card.is-skipped   { border-left-color: var(--warn); background: #fffaf0; }
 .order-card.is-cancelled { border-left-color: #c9ced6; background: #fafbfc; }
+.order-card.is-pending   { border-left-color: #c9ced6; }
 
 /* 呼び出し番号を過ぎたのに未入店＝取りこぼし候補 */
 .order-card.is-overdue {
@@ -629,3 +640,85 @@ th { background: #f7f9fb; font-size: 13px; color: var(--muted); }
   .log-toolbar { flex-direction: column; align-items: flex-start; gap: 6px; }
   .order-actions button { flex: 1 1 100%; }
 }
+
+/* ===== 9. 番号チップ（お客様画面の呼び出し一覧） ===== */
+.number-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 10px;
+}
+.number-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+  background: #fdecea;
+  color: var(--danger);
+  border: 1px solid #f5c6c0;
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.number-chip small { font-size: 13px; font-weight: 700; }
+.number-chip.is-skipped {
+  background: #fff6e5;
+  color: #8a5300;
+  border-color: #f5dda8;
+}
+
+/* ===== 10. 設定のスイッチ行 ===== */
+.switch-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  margin: 0 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-weight: 400;
+  cursor: pointer;
+}
+.switch-row:hover { background: #f7f9fb; }
+.switch-row input { width: auto; margin-top: 3px; flex: 0 0 auto; }
+.switch-row strong { display: block; font-size: 15px; }
+.switch-row small { display: block; font-size: 12px; color: var(--muted); margin-top: 3px; line-height: 1.5; }
+
+/* ===== 11. 売上の内訳 ===== */
+.sales-row {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+.sales-row:last-child { border-bottom: none; }
+.sales-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+}
+.sales-name { font-size: 16px; font-weight: 700; }
+.sales-qty {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--brand);
+  font-variant-numeric: tabular-nums;
+}
+.sales-qty small { font-size: 13px; color: var(--muted); margin-left: 2px; }
+.sales-bar {
+  height: 8px;
+  background: #eef2f7;
+  border-radius: 999px;
+  overflow: hidden;
+  margin: 6px 0 4px;
+}
+.sales-bar span {
+  display: block;
+  height: 100%;
+  background: var(--brand);
+  border-radius: 999px;
+}
+.sales-sub { font-size: 13px; color: var(--muted); }
+.sales-sub strong { color: var(--text); font-size: 14px; }

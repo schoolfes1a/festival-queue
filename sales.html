@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>売上 - 1A文化祭</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="staff-page narrow">
+
+<div id="shell"></div>
+
+<main>
+
+  <section class="card">
+    <div class="card-header">
+      <h2>売上</h2>
+      <div class="tabbar" style="margin:0;">
+        <button type="button" class="tab-btn active" data-range="today">本日</button>
+        <button type="button" class="tab-btn" data-range="all">全期間</button>
+      </div>
+    </div>
+    <p class="note" id="range-note"></p>
+
+    <div class="stat-row">
+      <div class="stat">
+        <div class="stat-value" id="total-sales">¥0</div>
+        <div class="stat-label">売上合計</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="total-orders">0</div>
+        <div class="stat-label">食券を買った組数</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="total-items">0</div>
+        <div class="stat-label">売れた個数</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-header">
+      <h2>商品別の内訳</h2>
+      <button id="csv-btn" class="green small">CSVダウンロード</button>
+    </div>
+    <div id="breakdown"></div>
+  </section>
+
+</main>
+
+<script type="module">
+import {
+  requireStaff, mountShell, subscribeOrders, subscribeTicketState,
+  updateNavBadges, esc, yen, calcTotal, isToday, toast
+} from "./app.js";
+
+mountShell({ active: "sales", title: "売上" });
+
+let orders = [];
+let currentNumber = 0;
+let range = "today";
+
+const RANGE_NOTE = {
+  today: "本日、食券を購入した分を集計しています（取り消した整理券は除きます）。",
+  all:   "これまでに食券を購入した分をすべて集計しています（取り消した整理券は除きます）。",
+};
+
+requireStaff(() => {
+  subscribeTicketState((s) => { currentNumber = s.currentNumber; });
+  subscribeOrders((list) => {
+    orders = list;
+    updateNavBadges(orders, currentNumber);
+    render();
+  });
+});
+
+document.querySelectorAll("[data-range]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    range = btn.dataset.range;
+    document.querySelectorAll("[data-range]").forEach((b) => b.classList.toggle("active", b === btn));
+    render();
+  });
+});
+
+// 集計対象：食券を購入済み（items が入っている）かつ 取り消していない整理券
+function targetOrders() {
+  return orders.filter((o) => {
+    if (o.status === "cancelled") return false;
+    if (!o.items || o.items.length === 0) return false;
+    if (range === "all") return true;
+    // purchasedAt が無い古いデータは createdAt で代用する
+    return isToday(o.purchasedAt || o.createdAt);
+  });
+}
+
+function aggregate(list) {
+  const map = new Map();
+  list.forEach((o) => {
+    (o.items || []).forEach((i) => {
+      const key = i.name;
+      const cur = map.get(key) || { name: key, price: Number(i.price || 0), qty: 0, amount: 0 };
+      cur.qty += Number(i.qty || 0);
+      cur.amount += Number(i.price || 0) * Number(i.qty || 0);
+      map.set(key, cur);
+    });
+  });
+  return [...map.values()].sort((a, b) => b.qty - a.qty);
+}
+
+function render() {
+  const list = targetOrders();
+  const rows = aggregate(list);
+
+  document.getElementById("range-note").textContent = RANGE_NOTE[range];
+  const total = list.reduce((s, o) => s + calcTotal(o.items), 0);
+  const itemCount = rows.reduce((s, r) => s + r.qty, 0);
+
+  document.getElementById("total-sales").textContent = yen(total);
+  document.getElementById("total-orders").textContent = list.length;
+  document.getElementById("total-items").textContent = itemCount;
+
+  const wrap = document.getElementById("breakdown");
+  wrap.innerHTML = "";
+
+  if (rows.length === 0) {
+    wrap.innerHTML = `<p class="empty">まだ売れていません</p>`;
+    return;
+  }
+
+  const max = Math.max(...rows.map((r) => r.qty));
+  rows.forEach((r) => {
+    const el = document.createElement("div");
+    el.className = "sales-row";
+    el.innerHTML = `
+      <div class="sales-head">
+        <span class="sales-name">${esc(r.name)}</span>
+        <span class="sales-qty">${r.qty}<small>個</small></span>
+      </div>
+      <div class="sales-bar"><span style="width:${Math.round((r.qty / max) * 100)}%"></span></div>
+      <div class="sales-sub">${yen(r.price)} × ${r.qty} = <strong>${yen(r.amount)}</strong></div>
+    `;
+    wrap.appendChild(el);
+  });
+}
+
+// ===== CSV =====
+function csvCell(v) {
+  const s = v == null ? "" : String(v);
+  return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+document.getElementById("csv-btn").addEventListener("click", () => {
+  const rows = aggregate(targetOrders());
+  if (rows.length === 0) { toast("出力できる売上がありません", "err"); return; }
+
+  const lines = [["商品名", "単価", "個数", "金額"].map(csvCell).join(",")];
+  rows.forEach((r) => lines.push([r.name, r.price, r.qty, r.amount].map(csvCell).join(",")));
+  lines.push(["合計", "", rows.reduce((s, r) => s + r.qty, 0), rows.reduce((s, r) => s + r.amount, 0)].map(csvCell).join(","));
+
+  // Excelで文字化けしないようUTF-8 BOMを付ける
+  const csv = "﻿" + lines.join("\r\n");
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  const name = `売上_${range === "today" ? "本日" : "全期間"}_${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}.csv`;
+
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
+});
+</script>
+
+</body>
+</html>

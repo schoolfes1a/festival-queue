@@ -39,7 +39,7 @@
 
 <script type="module">
 import {
-  db, requireStaff, mountShell, subscribeOrders, updateNavBadges,
+  db, requireStaff, mountShell, subscribeOrders, subscribeTicketState, updateNavBadges,
   esc, fmtTime, toast
 } from "./app.js";
 import {
@@ -105,8 +105,12 @@ let activeKey = "login";
 let activeLimit = 200;
 let unsubscribe = null;
 
+let currentNumber = 0;
+
 requireStaff(() => {
-  subscribeOrders((orders) => updateNavBadges(orders));
+  // タブのバッジは「呼び出し中」の判定に呼び出し番号が要る
+  subscribeTicketState((s) => { currentNumber = s.currentNumber; });
+  subscribeOrders((orders) => updateNavBadges(orders, currentNumber));
   show("login");
 });
 

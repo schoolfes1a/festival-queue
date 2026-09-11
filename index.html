@@ -11,9 +11,24 @@
 <h1 class="site-title">1A文化祭</h1>
 
 <div class="card now-card">
-  <div class="now-label">ただいまお呼びしている番号</div>
-  <div class="big-number is-empty" id="current-number-display">読み込み中…</div>
+  <div class="now-label">ただいま呼び出し中の番号</div>
+  <div id="calling-area">
+    <div class="big-number is-empty" id="calling-empty">読み込み中…</div>
+  </div>
+  <p class="note" style="margin:14px 0 0;">
+    番号が出たら受付までお越しください。食券をご購入いただきます。
+  </p>
+</div>
 
+<div class="card" id="skipped-card" hidden>
+  <div class="now-label">お呼びしましたが、まだお越しでない番号</div>
+  <div class="number-chips" id="skipped-list"></div>
+  <p class="note" style="margin:12px 0 0;">
+    この番号をお持ちの方は、お待たせしております。受付までお越しください。順番はお取りしてあります。
+  </p>
+</div>
+
+<div class="card now-card">
   <div class="wait-row">
     <div class="wait-box">
       <div class="wait-value" id="waiting-count">-<small>人</small></div>
@@ -21,13 +36,9 @@
     </div>
     <div class="wait-box">
       <div class="wait-value" id="latest-ticket">-<small>番</small></div>
-      <div class="wait-label">最後にお渡しした整理券</div>
+      <div class="wait-label">最後に発行した整理券</div>
     </div>
   </div>
-
-  <p class="note" style="margin:14px 0 0;">
-    お手元の整理券の番号が呼ばれるまで、しばらくお待ちください。
-  </p>
   <p class="updated-note">この画面は自動で更新されます</p>
 </div>
 
@@ -55,25 +66,82 @@ function esc(s) {
   return div.innerHTML;
 }
 
-// ===== 呼び出し番号・お待ちの人数 =====
-// 待ち人数は「お渡し済みの整理券 − いま呼んでいる番号」で求める（整理券1枚＝1人として数える）。
-// 注文コレクションを読まずに済むので、お客様の端末に他の方の注文内容が
-// 一切ダウンロードされず、通信量も最小限で済む。
+// ===== 呼び出し番号・待ち人数 =====
+// 整理券は発行しただけでは注文が入っていないので、
+// 待ち人数は「発行済みの番号 − 呼び出し済みの番号」で数える。
 onSnapshot(doc(db, "state", "ticket"), (snap) => {
   const data = snap.data() || {};
   const current = Number(data.currentNumber || 0);
   const latest = Number(data.latestTicket || 0);
   const waiting = Math.max(0, latest - current);
 
-  const numEl = document.getElementById("current-number-display");
-  numEl.textContent = current > 0 ? current : "準備中です";
-  numEl.classList.toggle("is-empty", current <= 0);
   document.getElementById("latest-ticket").innerHTML =
     latest > 0 ? `${latest}<small>番</small>` : `-<small>番</small>`;
   document.getElementById("waiting-count").innerHTML = `${waiting}<small>人</small>`;
 });
 
-// ===== メニュー一覧 =====
+// ===== 掲示板 =====
+// 番号だけを載せた公開用のドキュメント。
+// 注文の中身（商品・備考）はお客様の端末には送られない。
+onSnapshot(doc(db, "state", "board"), (snap) => {
+  const data = snap.data() || {};
+  renderCalling(Array.isArray(data.calling) ? data.calling : []);
+  renderSkipped(Array.isArray(data.skipped) ? data.skipped : []);
+}, (err) => {
+  console.error("呼び出し状況の取得に失敗しました", err);
+});
+
+function renderCalling(list) {
+  const area = document.getElementById("calling-area");
+  area.innerHTML = "";
+
+  if (list.length === 0) {
+    const el = document.createElement("div");
+    el.className = "big-number is-empty";
+    el.textContent = "ただいま呼び出し中の番号はありません";
+    area.appendChild(el);
+    return;
+  }
+
+  // 直近に呼ばれた番号をいちばん大きく出す
+  const sorted = [...list].sort((a, b) => a - b);
+  const main = sorted[sorted.length - 1];
+
+  const big = document.createElement("div");
+  big.className = "big-number";
+  big.textContent = main;
+  area.appendChild(big);
+
+  if (sorted.length > 1) {
+    const rest = document.createElement("div");
+    rest.className = "number-chips";
+    rest.innerHTML = sorted.slice(0, -1)
+      .map((n) => `<span class="number-chip">${esc(n)}<small>番</small></span>`).join("");
+    area.appendChild(rest);
+
+    const label = document.createElement("p");
+    label.className = "note";
+    label.style.margin = "10px 0 0";
+    label.textContent = `上記をふくむ ${sorted.length} 件をお呼びしています。`;
+    area.appendChild(label);
+  }
+}
+
+function renderSkipped(list) {
+  const card = document.getElementById("skipped-card");
+  const wrap = document.getElementById("skipped-list");
+
+  if (list.length === 0) {
+    card.hidden = true;
+    return;
+  }
+
+  card.hidden = false;
+  wrap.innerHTML = [...list].sort((a, b) => a - b)
+    .map((n) => `<span class="number-chip is-skipped">${esc(n)}<small>番</small></span>`).join("");
+}
+
+// ===== メニュー =====
 onSnapshot(query(collection(db, "menu"), orderBy("name")), (snap) => {
   const list = document.getElementById("menu-view-list");
   list.innerHTML = "";

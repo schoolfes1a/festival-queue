@@ -14,12 +14,12 @@
 
   <div class="reception-layout">
 
-    <!-- 左：呼び出しと状況 -->
+    <!-- 左：呼び出しと発行 -->
     <div class="col col-left">
       <section class="card">
         <div class="card-header">
           <h2>呼び出し番号</h2>
-          <span class="muted" style="font-size:13px;">お客様画面に表示されます</span>
+          <span class="muted" style="font-size:13px;">お客様画面に出ます</span>
         </div>
         <div class="big-number is-empty" id="current-number-display">読み込み中…</div>
         <div class="btn-row">
@@ -30,6 +30,19 @@
           <input type="number" id="manual-number-input" placeholder="番号を直接指定" inputmode="numeric">
           <button id="manual-number-btn" class="ghost small">この番号にする</button>
         </div>
+        <p class="note" id="autocall-note" style="margin:10px 0 0;"></p>
+      </section>
+
+      <section class="card">
+        <div class="card-header">
+          <h2>整理券の発行</h2>
+        </div>
+        <p class="note">注文はまだ取りません。番号を渡すだけです。</p>
+        <div class="stat" style="margin-bottom:12px;">
+          <div class="stat-value" id="next-ticket">1</div>
+          <div class="stat-label">次に発行する番号</div>
+        </div>
+        <button id="issue-btn" class="green big block">整理券を発行する</button>
       </section>
 
       <section class="card">
@@ -38,70 +51,57 @@
         </div>
         <div class="stat-row">
           <div class="stat">
-            <div class="stat-value status-pending" id="stat-pending">0</div>
-            <div class="stat-label">未入店</div>
+            <div class="stat-value status-called" id="stat-called">0</div>
+            <div class="stat-label">呼び出し中</div>
+          </div>
+          <div class="stat">
+            <div class="stat-value status-purchased" id="stat-purchased">0</div>
+            <div class="stat-label">入店待ち</div>
           </div>
           <div class="stat">
             <div class="stat-value status-entered" id="stat-entered">0</div>
-            <div class="stat-label">提供待ち</div>
-          </div>
-          <div class="stat">
-            <div class="stat-value status-served" id="stat-served">0</div>
-            <div class="stat-label">提供済み</div>
+            <div class="stat-label">入店済み</div>
           </div>
         </div>
         <div class="stat-row" style="margin-top:10px;">
           <div class="stat">
-            <div class="stat-value" id="stat-next">1</div>
-            <div class="stat-label">次に発行する番号</div>
+            <div class="stat-value status-skipped" id="stat-skipped">0</div>
+            <div class="stat-label">呼び飛ばし</div>
           </div>
           <div class="stat">
             <div class="stat-value" id="stat-sales">¥0</div>
-            <div class="stat-label">売上</div>
+            <div class="stat-label">本日の売上</div>
           </div>
         </div>
         <p class="note" style="margin:12px 0 0;">
-          売上はキャンセル分を除いた合計です。<br>
-          メニューや発行番号の変更は<a href="settings.html">設定</a>タブへ。
+          内訳は<a href="sales.html">売上</a>タブで見られます。
         </p>
       </section>
     </div>
 
-    <!-- 中央：注文受付 -->
+    <!-- 中央：呼び出し中 -->
     <div class="col col-center">
       <section class="card">
         <div class="card-header">
-          <h2>注文受付（整理券発行）</h2>
-          <span class="muted" style="font-size:13px;">商品を押すとカートに入ります</span>
+          <h2>呼び出し中</h2>
+          <span class="muted" style="font-size:13px;">番号を呼んだ順</span>
         </div>
-        <div class="menu-grid" id="menu-select-grid"></div>
-
-        <h2 style="margin-top:18px;">カート</h2>
-        <div id="cart-list"></div>
-        <div class="cart-total">
-          <span>合計</span>
-          <b id="cart-total">¥0</b>
-        </div>
-        <label for="order-note" style="margin-top:10px;">備考（任意）</label>
-        <textarea id="order-note" rows="2" placeholder="アレルギー、まとめ会計など"></textarea>
-        <button id="issue-ticket-btn" class="green big block" style="margin-top:10px;">整理券を発行する</button>
+        <p class="note">
+          お客様が来たら「食券を買う」を押して商品を選びます。来なければ「呼び飛ばし」に送ると、
+          お客様画面に番号が出て後から戻ってこられます。
+        </p>
+        <div class="board" id="called-board"></div>
       </section>
     </div>
 
-    <!-- 右：入店管理 -->
+    <!-- 右：呼び飛ばし -->
     <div class="col col-right">
       <section class="card">
         <div class="card-header">
-          <h2>入店管理（未入店の注文）</h2>
-          <label style="display:flex; align-items:center; gap:6px; font-weight:600; font-size:13px; margin:0;">
-            <input type="checkbox" id="only-overdue" style="width:auto;">
-            呼び出し済みだけ表示
-          </label>
+          <h2>呼び飛ばし</h2>
         </div>
-        <p class="note">
-          呼び出し番号を過ぎたものは<span class="overdue-flag">呼び出し済</span>として赤く出ます。「入店」で提供リストに移ります。
-        </p>
-        <div class="board" id="pending-board"></div>
+        <p class="note">呼んでも来なかった番号です。お客様画面にも表示されます。</p>
+        <div class="board" id="skipped-board"></div>
       </section>
     </div>
 
@@ -109,21 +109,41 @@
 
 </main>
 
-<!-- 発行完了モーダル -->
-<div class="modal" id="ticket-modal" hidden>
+<!-- 発行完了 -->
+<div class="modal" id="issue-modal" hidden>
   <div class="modal-box" style="text-align:center;">
     <h2>整理券番号</h2>
-    <div class="big-number" id="ticket-modal-number">-</div>
-    <p class="muted" id="ticket-modal-total" style="margin-top:-6px;"></p>
-    <button id="ticket-modal-close" class="green big block">閉じる</button>
+    <div class="big-number" id="issue-modal-number">-</div>
+    <p class="muted">この番号をお客様にお渡しください</p>
+    <button id="issue-modal-close" class="green big block">閉じる</button>
+  </div>
+</div>
+
+<!-- 食券購入 -->
+<div class="modal" id="buy-modal" hidden>
+  <div class="modal-box" style="max-width:560px;">
+    <h2 id="buy-title">食券の購入</h2>
+    <div class="menu-grid" id="buy-menu"></div>
+    <h2 style="margin-top:14px;">カート</h2>
+    <div id="buy-cart"></div>
+    <div class="cart-total">
+      <span>合計</span>
+      <b id="buy-total">¥0</b>
+    </div>
+    <label for="buy-note" style="margin-top:8px;">備考（任意）</label>
+    <textarea id="buy-note" rows="2" placeholder="アレルギー、まとめ会計など"></textarea>
+    <div class="btn-row" style="margin-top:14px;">
+      <button id="buy-confirm" class="green big" style="flex:2;">購入を確定して入店待ちへ</button>
+      <button id="buy-cancel" class="ghost" style="flex:1;">閉じる</button>
+    </div>
   </div>
 </div>
 
 <script type="module">
 import {
   db, requireStaff, mountShell, subscribeOrders, subscribeMenu, subscribeTicketState,
-  updateNavBadges, setOrderStatus, setCurrentNumber,
-  esc, yen, calcTotal, itemsHtml, fmtClock, toast, createArrivalWatcher
+  subscribeConfig, syncBoard, setOrderStatus, setCurrentNumber, updateNavBadges,
+  esc, yen, calcTotal, fmtClock, toast, effectiveStatus, isToday, DEFAULT_CONFIG
 } from "./app.js";
 import {
   doc, setDoc, runTransaction, serverTimestamp
@@ -134,164 +154,92 @@ mountShell({ active: "reception", title: "受付" });
 
 let menuItems = [];
 let orders = [];
-let cart = [];
 let staffEmail = null;
 let currentNumber = 0;
 let latestTicket = 0;
+let config = { ...DEFAULT_CONFIG };
 let issuing = false;
-const newIds = new Set();
 
-// 他のスタッフが入店操作をしたときに気づけるよう、未入店の新着を検知する
-const detectNewPending = createArrivalWatcher((o) => o.status === "pending");
+let buying = null;   // { id, ticketNumber, cart: [] }
 
 requireStaff((user) => {
   staffEmail = user.email;
 
+  subscribeConfig((c) => {
+    config = c;
+    document.getElementById("autocall-note").textContent = c.autoCall
+      ? `入店させると、その番号の${c.lookahead}つ先まで自動で呼び出します。`
+      : "自動呼び出しは無効です。番号は手動で進めてください。";
+  });
+
   subscribeTicketState((state) => {
     currentNumber = state.currentNumber;
     latestTicket = state.latestTicket;
-    const numEl = document.getElementById("current-number-display");
-    numEl.textContent = currentNumber > 0 ? currentNumber : "まだ呼び出していません";
-    numEl.classList.toggle("is-empty", currentNumber <= 0);
-    document.getElementById("stat-next").textContent = latestTicket + 1;
-    renderPending();
+    const el = document.getElementById("current-number-display");
+    el.textContent = currentNumber > 0 ? currentNumber : "まだ呼び出していません";
+    el.classList.toggle("is-empty", currentNumber <= 0);
+    document.getElementById("next-ticket").textContent = latestTicket + 1;
+    render();
   });
 
   subscribeMenu((items) => {
     menuItems = items;
-    renderMenuGrid();
+    if (buying) renderBuyMenu();
   });
 
-  subscribeOrders((list, snap) => {
+  subscribeOrders((list) => {
     orders = list;
-    detectNewPending(snap).forEach((id) => {
-      newIds.add(id);
-      setTimeout(() => newIds.delete(id), 6000);
-    });
-    updateNavBadges(orders);
-    renderStats();
-    renderPending();
+    render();
+    if (buying && !orders.some((o) => o.id === buying.id)) closeBuy();
   });
 });
 
-// ===== 状況サマリー =====
+function render() {
+  renderStats();
+  renderCalled();
+  renderSkipped();
+  syncBoard(orders, currentNumber);
+}
+
+// ===== 状況 =====
 function renderStats() {
-  const count = (s) => orders.filter((o) => o.status === s).length;
-  document.getElementById("stat-pending").textContent = count("pending");
-  document.getElementById("stat-entered").textContent = count("entered");
-  document.getElementById("stat-served").textContent = count("served");
+  const eff = (o) => effectiveStatus(o, currentNumber);
+  const count = (s) => orders.filter((o) => eff(o) === s).length;
+  document.getElementById("stat-called").textContent = count("called");
+  document.getElementById("stat-purchased").textContent = count("purchased");
+  document.getElementById("stat-entered").textContent = count("entered") + count("served");
+  document.getElementById("stat-skipped").textContent = count("skipped");
 
   const sales = orders
-    .filter((o) => o.status !== "cancelled")
+    .filter((o) => o.status !== "cancelled" && isToday(o.purchasedAt))
     .reduce((sum, o) => sum + calcTotal(o.items), 0);
   document.getElementById("stat-sales").textContent = yen(sales);
+
+  updateNavBadges(orders, currentNumber);
 }
 
 // ===== 呼び出し番号 =====
 document.getElementById("call-next-btn").addEventListener("click", () => {
   setCurrentNumber(currentNumber + 1, staffEmail, "呼び出し番号+1");
 });
-
 document.getElementById("call-back-btn").addEventListener("click", () => {
   setCurrentNumber(Math.max(0, currentNumber - 1), staffEmail, "呼び出し番号-1");
 });
-
 document.getElementById("manual-number-btn").addEventListener("click", () => {
   const input = document.getElementById("manual-number-input");
   const val = Number(input.value);
-  if (!val || val < 0) {
-    toast("番号を入力してください", "err");
-    return;
-  }
+  if (!val || val < 0) { toast("番号を入力してください", "err"); return; }
   setCurrentNumber(val, staffEmail, "呼び出し番号を手動設定");
   input.value = "";
 });
 
-// ===== メニュー選択・カート =====
-function renderMenuGrid() {
-  const grid = document.getElementById("menu-select-grid");
-  grid.innerHTML = "";
-  if (menuItems.length === 0) {
-    grid.innerHTML = `<p class="empty">メニューが登録されていません。<a href="settings.html">設定</a>タブから追加してください。</p>`;
-    return;
-  }
-  menuItems.forEach((item) => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "menu-item-btn";
-    btn.innerHTML = `${esc(item.name)}<span>${yen(item.price)}</span>`;
-    btn.addEventListener("click", () => addToCart(item));
-    grid.appendChild(btn);
-  });
-}
-
-function addToCart(item) {
-  const existing = cart.find((c) => c.itemId === item.id);
-  if (existing) {
-    existing.qty += 1;
-  } else {
-    cart.push({ itemId: item.id, name: item.name, price: Number(item.price), qty: 1 });
-  }
-  renderCart();
-}
-
-function changeQty(idx, delta) {
-  cart[idx].qty += delta;
-  if (cart[idx].qty <= 0) cart.splice(idx, 1);
-  renderCart();
-}
-
-function renderCart() {
-  const list = document.getElementById("cart-list");
-  list.innerHTML = "";
-
-  if (cart.length === 0) {
-    list.innerHTML = `<p class="empty">カートは空です</p>`;
-  } else {
-    cart.forEach((c, idx) => {
-      const row = document.createElement("div");
-      row.className = "cart-row";
-      row.innerHTML = `
-        <span>${esc(c.name)}<br><small class="muted">${yen(c.price)} × ${c.qty} = ${yen(c.price * c.qty)}</small></span>
-        <span class="qty-ctrl">
-          <button type="button" class="gray" data-minus="${idx}">−</button>
-          <span class="cart-qty">${c.qty}</span>
-          <button type="button" class="gray" data-plus="${idx}">＋</button>
-          <button type="button" class="red small" data-remove="${idx}">削除</button>
-        </span>
-      `;
-      list.appendChild(row);
-    });
-
-    list.querySelectorAll("[data-plus]").forEach((b) =>
-      b.addEventListener("click", () => changeQty(Number(b.dataset.plus), 1)));
-    list.querySelectorAll("[data-minus]").forEach((b) =>
-      b.addEventListener("click", () => changeQty(Number(b.dataset.minus), -1)));
-    list.querySelectorAll("[data-remove]").forEach((b) =>
-      b.addEventListener("click", () => { cart.splice(Number(b.dataset.remove), 1); renderCart(); }));
-  }
-
-  document.getElementById("cart-total").textContent = yen(calcTotal(cart));
-}
-
-renderCart();
-
-// ===== 整理券発行 =====
-document.getElementById("issue-ticket-btn").addEventListener("click", async () => {
+// ===== 整理券の発行 =====
+document.getElementById("issue-btn").addEventListener("click", async () => {
   if (issuing) return;
-  if (cart.length === 0) {
-    toast("カートが空です", "err");
-    return;
-  }
-
-  const btn = document.getElementById("issue-ticket-btn");
+  const btn = document.getElementById("issue-btn");
   issuing = true;
   btn.disabled = true;
   btn.textContent = "発行中…";
-
-  const note = document.getElementById("order-note").value.trim();
-  const items = cart.map((c) => ({ itemId: c.itemId, name: c.name, price: c.price, qty: c.qty }));
-  const total = calcTotal(items);
 
   try {
     const stateRef = doc(db, "state", "ticket");
@@ -305,27 +253,19 @@ document.getElementById("issue-ticket-btn").addEventListener("click", async () =
 
     await setDoc(doc(db, "orders", String(newNumber)), {
       ticketNumber: newNumber,
-      items,
-      note,
-      status: "pending",
+      items: [],
+      note: "",
+      status: "issued",
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
-    logOrder(
-      staffEmail, newNumber, "発行",
-      items.map((i) => `${i.name}×${i.qty}`).join(", ") + ` / 合計${total}円` + (note ? ` / 備考:${note}` : "")
-    );
+    logOrder(staffEmail, newNumber, "整理券発行", "");
 
-    cart = [];
-    document.getElementById("order-note").value = "";
-    renderCart();
-
-    document.getElementById("ticket-modal-number").textContent = newNumber;
-    document.getElementById("ticket-modal-total").textContent = `合計 ${yen(total)}`;
-    document.getElementById("ticket-modal").hidden = false;
+    document.getElementById("issue-modal-number").textContent = newNumber;
+    document.getElementById("issue-modal").hidden = false;
   } catch (e) {
     console.error(e);
-    toast("整理券の発行に失敗しました。通信を確認してもう一度お試しください", "err");
+    toast("発行に失敗しました。通信を確認してもう一度お試しください", "err");
   } finally {
     issuing = false;
     btn.disabled = false;
@@ -333,48 +273,35 @@ document.getElementById("issue-ticket-btn").addEventListener("click", async () =
   }
 });
 
-document.getElementById("ticket-modal-close").addEventListener("click", () => {
-  document.getElementById("ticket-modal").hidden = true;
+document.getElementById("issue-modal-close").addEventListener("click", () => {
+  document.getElementById("issue-modal").hidden = true;
 });
 
-document.getElementById("only-overdue").addEventListener("change", renderPending);
-
-// ===== 入店管理 =====
-function renderPending() {
-  const board = document.getElementById("pending-board");
-  if (!board) return;
-  const onlyOverdue = document.getElementById("only-overdue").checked;
-
+// ===== 呼び出し中 =====
+function renderCalled() {
+  const board = document.getElementById("called-board");
   const list = orders
-    .filter((o) => o.status === "pending")
-    .filter((o) => !onlyOverdue || Number(o.ticketNumber) <= currentNumber)
+    .filter((o) => effectiveStatus(o, currentNumber) === "called")
     .sort((a, b) => Number(a.ticketNumber) - Number(b.ticketNumber));
 
   board.innerHTML = "";
   if (list.length === 0) {
-    board.innerHTML = `<p class="empty">${onlyOverdue ? "呼び出し済みで未入店の注文はありません" : "未入店の注文はありません"}</p>`;
+    board.innerHTML = `<p class="empty">呼び出し中の番号はありません</p>`;
     return;
   }
 
   list.forEach((order) => {
-    const overdue = Number(order.ticketNumber) <= currentNumber;
     const card = document.createElement("div");
-    card.className = `order-card is-pending${overdue ? " is-overdue" : ""}${newIds.has(order.id) ? " is-new" : ""}`;
+    card.className = "order-card is-called";
     card.innerHTML = `
       <div class="order-head">
         <div class="order-num">${esc(order.ticketNumber)}<small>番</small></div>
-        <div class="order-meta">
-          ${overdue ? `<span class="overdue-flag">呼び出し済</span><br>` : ""}
-          ${fmtClock(order.createdAt)}
-        </div>
+        <div class="order-meta">発行 ${fmtClock(order.createdAt)}</div>
       </div>
-      <div class="order-items">${itemsHtml(order.items)}</div>
-      ${order.note ? `<div class="order-note">${esc(order.note)}</div>` : ""}
-      <div class="order-total">${yen(calcTotal(order.items))}</div>
       <div class="order-actions">
-        <button class="green" data-enter="${order.id}">入店</button>
-        <button class="ghost small" data-recall="${order.id}">この番号を呼ぶ</button>
-        <button class="red small" data-cancel="${order.id}">キャンセル</button>
+        <button class="green" data-buy="${order.id}">食券を買う</button>
+        <button class="ghost small" data-skip="${order.id}">呼び飛ばし</button>
+        <button class="red small" data-cancel="${order.id}">取消</button>
       </div>
     `;
     board.appendChild(card);
@@ -382,25 +309,179 @@ function renderPending() {
 
   const find = (id) => orders.find((o) => o.id === id);
 
-  board.querySelectorAll("[data-enter]").forEach((b) =>
-    b.addEventListener("click", () => setOrderStatus(find(b.dataset.enter), "entered", staffEmail)));
+  board.querySelectorAll("[data-buy]").forEach((b) =>
+    b.addEventListener("click", () => openBuy(find(b.dataset.buy))));
 
-  board.querySelectorAll("[data-recall]").forEach((b) =>
-    b.addEventListener("click", () => {
-      const order = find(b.dataset.recall);
-      if (!order) return;
-      setCurrentNumber(Number(order.ticketNumber), staffEmail, "再呼び出し");
-    }));
+  board.querySelectorAll("[data-skip]").forEach((b) =>
+    b.addEventListener("click", () => setOrderStatus(find(b.dataset.skip), "skipped", staffEmail)));
 
   board.querySelectorAll("[data-cancel]").forEach((b) =>
     b.addEventListener("click", () => {
       const order = find(b.dataset.cancel);
       if (!order) return;
-      if (confirm(`${order.ticketNumber}番の注文をキャンセルしますか？`)) {
+      if (confirm(`${order.ticketNumber}番を取り消しますか？`)) {
         setOrderStatus(order, "cancelled", staffEmail);
       }
     }));
 }
+
+// ===== 呼び飛ばし =====
+function renderSkipped() {
+  const board = document.getElementById("skipped-board");
+  const list = orders
+    .filter((o) => o.status === "skipped")
+    .sort((a, b) => Number(a.ticketNumber) - Number(b.ticketNumber));
+
+  board.innerHTML = "";
+  if (list.length === 0) {
+    board.innerHTML = `<p class="empty">飛ばした番号はありません</p>`;
+    return;
+  }
+
+  list.forEach((order) => {
+    const card = document.createElement("div");
+    card.className = "order-card is-skipped";
+    card.innerHTML = `
+      <div class="order-head">
+        <div class="order-num">${esc(order.ticketNumber)}<small>番</small></div>
+        <div class="order-meta">発行 ${fmtClock(order.createdAt)}</div>
+      </div>
+      <div class="order-actions">
+        <button class="green" data-buy2="${order.id}">来たので購入へ</button>
+        <button class="red small" data-cancel2="${order.id}">取消</button>
+      </div>
+    `;
+    board.appendChild(card);
+  });
+
+  const find = (id) => orders.find((o) => o.id === id);
+
+  board.querySelectorAll("[data-buy2]").forEach((b) =>
+    b.addEventListener("click", () => openBuy(find(b.dataset.buy2))));
+
+  board.querySelectorAll("[data-cancel2]").forEach((b) =>
+    b.addEventListener("click", () => {
+      const order = find(b.dataset.cancel2);
+      if (!order) return;
+      if (confirm(`${order.ticketNumber}番を取り消しますか？`)) {
+        setOrderStatus(order, "cancelled", staffEmail);
+      }
+    }));
+}
+
+// ===== 食券購入 =====
+function openBuy(order) {
+  if (!order) return;
+  buying = {
+    id: order.id,
+    ticketNumber: order.ticketNumber,
+    cart: (order.items || []).map((i) => ({ ...i })),
+  };
+  document.getElementById("buy-title").textContent = `${order.ticketNumber}番 の食券購入`;
+  document.getElementById("buy-note").value = order.note || "";
+  document.getElementById("buy-modal").hidden = false;
+  renderBuyMenu();
+  renderBuyCart();
+}
+
+function closeBuy() {
+  buying = null;
+  document.getElementById("buy-modal").hidden = true;
+}
+
+document.getElementById("buy-cancel").addEventListener("click", closeBuy);
+
+function renderBuyMenu() {
+  const grid = document.getElementById("buy-menu");
+  grid.innerHTML = "";
+  if (menuItems.length === 0) {
+    grid.innerHTML = `<p class="empty">メニューが登録されていません。<a href="settings.html">設定</a>タブから追加してください。</p>`;
+    return;
+  }
+  menuItems.forEach((item) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "menu-item-btn";
+    btn.innerHTML = `${esc(item.name)}<span>${yen(item.price)}</span>`;
+    btn.addEventListener("click", () => {
+      const ex = buying.cart.find((c) => c.itemId === item.id);
+      if (ex) ex.qty += 1;
+      else buying.cart.push({ itemId: item.id, name: item.name, price: Number(item.price), qty: 1 });
+      renderBuyCart();
+    });
+    grid.appendChild(btn);
+  });
+}
+
+function renderBuyCart() {
+  const list = document.getElementById("buy-cart");
+  list.innerHTML = "";
+
+  if (buying.cart.length === 0) {
+    list.innerHTML = `<p class="empty">商品を選んでください</p>`;
+  } else {
+    buying.cart.forEach((c, idx) => {
+      const row = document.createElement("div");
+      row.className = "cart-row";
+      row.innerHTML = `
+        <span>${esc(c.name)}<br><small class="muted">${yen(c.price)} × ${c.qty} = ${yen(c.price * c.qty)}</small></span>
+        <span class="qty-ctrl">
+          <button type="button" class="gray" data-m="${idx}">−</button>
+          <span class="cart-qty">${c.qty}</span>
+          <button type="button" class="gray" data-p="${idx}">＋</button>
+          <button type="button" class="red small" data-r="${idx}">削除</button>
+        </span>
+      `;
+      list.appendChild(row);
+    });
+    list.querySelectorAll("[data-p]").forEach((b) =>
+      b.addEventListener("click", () => { buying.cart[Number(b.dataset.p)].qty += 1; renderBuyCart(); }));
+    list.querySelectorAll("[data-m]").forEach((b) =>
+      b.addEventListener("click", () => {
+        const i = Number(b.dataset.m);
+        buying.cart[i].qty -= 1;
+        if (buying.cart[i].qty <= 0) buying.cart.splice(i, 1);
+        renderBuyCart();
+      }));
+    list.querySelectorAll("[data-r]").forEach((b) =>
+      b.addEventListener("click", () => { buying.cart.splice(Number(b.dataset.r), 1); renderBuyCart(); }));
+  }
+
+  document.getElementById("buy-total").textContent = yen(calcTotal(buying.cart));
+}
+
+document.getElementById("buy-confirm").addEventListener("click", async () => {
+  if (!buying) return;
+  if (buying.cart.length === 0) { toast("商品が選ばれていません", "err"); return; }
+
+  const btn = document.getElementById("buy-confirm");
+  btn.disabled = true;
+  const note = document.getElementById("buy-note").value.trim();
+  const items = buying.cart.map((c) => ({ itemId: c.itemId, name: c.name, price: c.price, qty: c.qty }));
+  const total = calcTotal(items);
+  const num = buying.ticketNumber;
+
+  try {
+    await setDoc(doc(db, "orders", buying.id), {
+      items,
+      note,
+      status: "purchased",
+      purchasedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+    logOrder(
+      staffEmail, num, "食券購入",
+      items.map((i) => `${i.name}×${i.qty}`).join(", ") + ` / 合計${total}円` + (note ? ` / 備考:${note}` : "")
+    );
+    toast(`${num}番 ${yen(total)} を受け付けました`);
+    closeBuy();
+  } catch (e) {
+    console.error(e);
+    toast("購入の確定に失敗しました", "err");
+  } finally {
+    btn.disabled = false;
+  }
+});
 </script>
 
 </body>
