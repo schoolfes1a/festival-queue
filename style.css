@@ -410,16 +410,34 @@ th { background: #f7f9fb; font-size: 13px; color: var(--muted); }
   padding-right: 4px;
 }
 
-/* 3カラムが窮屈になったら、入店管理を下段に回して横幅いっぱいに使う */
+/* ワンオペモード：受付1台で入店・提供まで回すので列が増える。
+   よく触る「呼び出し中」と「入店待ち」に広い列をあてる。 */
+/* 1台で全部やるので、4列とも画面内に収まることを優先する。
+   よく触る「呼び出し中」と「入店待ち」が伸び縮みする列。 */
+.reception-layout.is-solo {
+  grid-template-columns:
+    minmax(250px, 285px) minmax(255px, 1fr) minmax(255px, 1fr) minmax(270px, 310px);
+}
+
+/* 通常モードは3列。窮屈になったら呼び飛ばしを下段へ回す。 */
 @media (max-width: 1360px) {
-  .reception-layout { grid-template-columns: minmax(260px, 320px) minmax(0, 1fr); }
-  .reception-layout .col-right { grid-column: 1 / -1; position: static; }
-  .reception-layout .col-right .board { max-height: none; overflow-y: visible; }
+  .reception-layout:not(.is-solo) { grid-template-columns: minmax(260px, 320px) minmax(0, 1fr); }
+  .reception-layout:not(.is-solo) .col-right { grid-column: 1 / -1; position: static; }
+  .reception-layout:not(.is-solo) .col-right .board { max-height: none; overflow-y: visible; }
+}
+
+/* ワンオペは4列のまま粘り、収まらなくなってから2列に落とす */
+@media (max-width: 1130px) {
+  .reception-layout.is-solo { grid-template-columns: minmax(240px, 300px) minmax(0, 1fr); }
+  .reception-layout.is-solo .col-right { position: static; }
+  .reception-layout.is-solo .col-right .board { max-height: none; overflow-y: visible; }
 }
 
 @media (max-width: 900px) {
-  .reception-layout { grid-template-columns: 1fr; }
-  .reception-layout .col-right { grid-column: auto; }
+  .reception-layout,
+  .reception-layout.is-solo { grid-template-columns: 1fr; }
+  .reception-layout .col-right,
+  .reception-layout .col-enter { grid-column: auto; }
 }
 
 /* 狭い列に入れても等幅で並ぶよう、flex ではなく grid で折り返す */

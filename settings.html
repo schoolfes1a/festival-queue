@@ -20,6 +20,14 @@
     </div>
 
     <label class="switch-row">
+      <input type="checkbox" id="cfg-solo">
+      <span>
+        <strong>ワンオペモード（受付1台で全部やる）</strong>
+        <small>受付画面に「入店待ち」と「入店済み」の列が増えて、食券の購入から入店・提供まで1画面で完結します。提供リストのタブへ移動する必要がなくなります。</small>
+      </span>
+    </label>
+
+    <label class="switch-row">
       <input type="checkbox" id="cfg-served">
       <span>
         <strong>「提供済み」の工程を使う</strong>
@@ -152,6 +160,7 @@ requireStaff((user) => {
 
   subscribeConfig((c) => {
     config = c;
+    document.getElementById("cfg-solo").checked = !!c.soloMode;
     document.getElementById("cfg-served").checked = !!c.useServed;
     document.getElementById("cfg-autocall").checked = !!c.autoCall;
     document.getElementById("cfg-lookahead").value = c.lookahead;
@@ -188,6 +197,13 @@ function updatePreview() {
 
 ["cfg-autocall", "cfg-lookahead"].forEach((id) =>
   document.getElementById(id).addEventListener("input", updatePreview));
+
+document.getElementById("cfg-solo").addEventListener("change", (e) => {
+  saveConfig({ soloMode: e.target.checked }, staffEmail);
+  toast(e.target.checked
+    ? "ワンオペモードにしました。受付画面だけで入店まで操作できます"
+    : "通常モードに戻しました。入店の操作は提供リストタブです");
+});
 
 document.getElementById("cfg-served").addEventListener("change", (e) => {
   saveConfig({ useServed: e.target.checked }, staffEmail);

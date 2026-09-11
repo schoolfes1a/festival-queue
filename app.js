@@ -61,6 +61,7 @@ export const DEFAULT_CONFIG = {
   useServed: true,  // 「提供済み」の工程を使うか
   autoCall:  true,  // 入店時に呼び出し番号を自動で進めるか
   lookahead: 3,     // 入店した番号の何個先まで呼ぶか
+  soloMode:  false, // 受付1台で入店・提供まで全部やるか
 };
 
 // ===== 表示ヘルパー =====
