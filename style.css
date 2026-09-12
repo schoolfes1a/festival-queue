@@ -184,6 +184,36 @@ label { font-size: 14px; font-weight: 600; display: block; margin-bottom: 4px; }
 
 .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
 
+/* まとめて呼ぶ：一度に複数の番号を呼び出し中にする操作 */
+.bulk-call {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.bulk-call-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-right: 2px;
+}
+.bulk-call button { flex: 1 1 auto; min-width: 52px; }
+
+/* いま何番を呼んでいるか。複数同時に呼べることが伝わるようにする。 */
+.calling-summary {
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--danger);
+  background: #fdecea;
+  border: 1px solid #f5c6c0;
+  border-radius: 8px;
+  padding: 6px 10px;
+  margin: 0 0 10px;
+  overflow-wrap: anywhere;
+}
+
 table { width: 100%; border-collapse: collapse; margin-top: 10px; }
 th, td {
   border-bottom: 1px solid var(--line);

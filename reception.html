@@ -22,13 +22,20 @@
           <span class="muted" style="font-size:13px;">お客様画面に出ます</span>
         </div>
         <div class="big-number is-empty" id="current-number-display">読み込み中…</div>
+        <p class="calling-summary" id="calling-summary"></p>
         <div class="btn-row">
           <button id="call-next-btn" class="green big" style="flex:2;">次を呼ぶ ＋1</button>
           <button id="call-back-btn" class="gray big" style="flex:1;">－1</button>
         </div>
+        <div class="bulk-call">
+          <span class="bulk-call-label">まとめて呼ぶ</span>
+          <button class="ghost small" data-call-by="2">＋2</button>
+          <button class="ghost small" data-call-by="3">＋3</button>
+          <button class="ghost small" data-call-by="5">＋5</button>
+        </div>
         <div class="inline-form" style="margin-top:10px;">
           <input type="number" id="manual-number-input" placeholder="番号を直接指定" inputmode="numeric">
-          <button id="manual-number-btn" class="ghost small">この番号にする</button>
+          <button id="manual-number-btn" class="ghost small">ここまで呼ぶ</button>
         </div>
         <p class="note" id="autocall-note" style="margin:10px 0 0;"></p>
       </section>
@@ -258,6 +265,16 @@ document.getElementById("call-next-btn").addEventListener("click", () => {
 document.getElementById("call-back-btn").addEventListener("click", () => {
   setCurrentNumber(Math.max(0, currentNumber - 1), staffEmail, "呼び出し番号-1");
 });
+// まとめて呼ぶ：一度に複数の番号を呼び出し中にする。
+// 呼び出し番号を n 進めると、未購入の番号がその分そろって一覧に並ぶ。
+document.querySelectorAll("[data-call-by]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const by = Number(btn.dataset.callBy);
+    const next = currentNumber + by;
+    setCurrentNumber(next, staffEmail, `まとめて呼び出し(+${by})`);
+  });
+});
+
 document.getElementById("manual-number-btn").addEventListener("click", () => {
   const input = document.getElementById("manual-number-input");
   const val = Number(input.value);
@@ -317,6 +334,8 @@ function renderCalled() {
     .filter((o) => effectiveStatus(o, currentNumber) === "called")
     .sort((a, b) => Number(a.ticketNumber) - Number(b.ticketNumber));
 
+  renderCallingSummary(list);
+
   board.innerHTML = "";
   if (list.length === 0) {
     board.innerHTML = `<p class="empty">呼び出し中の番号はありません</p>`;
@@ -356,6 +375,26 @@ function renderCalled() {
         setOrderStatus(order, "cancelled", staffEmail);
       }
     }));
+}
+
+// いま何番を呼んでいるのかを、番号カードの下にも出す。
+// 複数を同時に呼べることが画面から分かるようにする。
+function renderCallingSummary(list) {
+  const el = document.getElementById("calling-summary");
+  if (!el) return;
+
+  if (list.length === 0) {
+    el.textContent = "";
+    el.hidden = true;
+    return;
+  }
+
+  el.hidden = false;
+  const nums = list.map((o) => o.ticketNumber);
+  const shown = nums.slice(0, 8).join("・");
+  el.textContent = nums.length > 8
+    ? `呼び出し中 ${shown}…（全${nums.length}件）`
+    : `呼び出し中 ${shown}番（${nums.length}件）`;
 }
 
 // ===== 呼び飛ばし =====
