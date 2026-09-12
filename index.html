@@ -3,12 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>1A文化祭 お客様用ページ</title>
+<title>喫茶一瑛</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<h1 class="site-title">1A文化祭</h1>
+<header class="site-head" id="site-head">
+  <img class="site-logo" id="site-logo" src="logo.jpg" alt="喫茶一瑛">
+  <h1 class="site-title">喫茶一瑛</h1>
+</header>
 
 <!-- 呼び出し中の番号（表示設定でON/OFF） -->
 <div class="card now-card" id="calling-card" hidden>
@@ -43,9 +46,12 @@
   <p class="updated-note">この画面は自動で更新されます</p>
 </div>
 
-<div class="card">
-  <h2>メニュー</h2>
-  <ul class="menu-detail-list" id="menu-view-list"></ul>
+<div class="menu-board">
+  <div class="menu-board-inner">
+    <h2 class="menu-board-title">MENU</h2>
+    <ul class="menu-list" id="menu-view-list"></ul>
+    <p class="menu-board-note" id="menu-note" hidden></p>
+  </div>
 </div>
 
 <div class="footer-login">
@@ -70,7 +76,7 @@ function esc(s) {
 // 何を出すかはスタッフが設定タブで決める。
 // すべてOFFならメニューだけのページになる。
 const DEFAULT_DISPLAY = {
-  showTickets: true, showPeople: true, showWait: false, people: 0, waitMinutes: 0,
+  showTickets: true, showPeople: true, showWait: false, people: 0, waitMinutes: 0, menuNote: "",
 };
 let display = { ...DEFAULT_DISPLAY };
 let board = { calling: [], skipped: [] };
@@ -78,7 +84,28 @@ let board = { calling: [], skipped: [] };
 onSnapshot(doc(db, "state", "display"), (snap) => {
   display = { ...DEFAULT_DISPLAY, ...(snap.data() || {}) };
   render();
+  renderMenuNote();
 }, (err) => console.error("表示設定の取得に失敗しました", err));
+
+// ロゴは置いてあれば出す。無ければ店名の文字だけにする。
+// 既定は非表示なので、読み込めなくても壊れた画像の印は出ない。
+const logoEl = document.getElementById("site-logo");
+function showLogo() {
+  if (logoEl.naturalWidth > 0) document.getElementById("site-head").classList.add("has-logo");
+}
+logoEl.addEventListener("load", showLogo);
+logoEl.addEventListener("error", () => logoEl.remove());
+if (logoEl.complete) {
+  if (logoEl.naturalWidth > 0) showLogo();
+  else logoEl.remove();
+}
+
+function renderMenuNote() {
+  const el = document.getElementById("menu-note");
+  const text = String(display.menuNote || "").trim();
+  el.hidden = text === "";
+  el.textContent = text;
+}
 
 // 番号だけを載せた公開用のドキュメント。
 // 購入内容（商品・備考）はお客様の端末には送られない。
@@ -163,28 +190,36 @@ function renderWait() {
 }
 
 // ===== メニュー =====
+// 価格・材料・アレルギーを縦に重ねた、お品書きの体裁で出す。
+// 売り切れの品は消さずに残し、売り切れと分かるようにする。
 onSnapshot(query(collection(db, "menu"), orderBy("name")), (snap) => {
   const list = document.getElementById("menu-view-list");
   list.innerHTML = "";
 
   if (snap.empty) {
-    list.innerHTML = `<li class="empty">準備中です</li>`;
+    list.innerHTML = `<li class="menu-empty">準備中です</li>`;
     return;
   }
 
   snap.docs.forEach((d) => {
     const item = d.data();
+    const sold = !!item.soldOut;
     const li = document.createElement("li");
+    li.className = "menu-item" + (sold ? " is-sold-out" : "");
     li.innerHTML = `
-      <div class="menu-detail-main">
-        <span class="menu-detail-name">${esc(item.name)}</span>
-        <span class="menu-detail-price">¥${esc(item.price)}</span>
+      <div class="menu-item-head">
+        <span class="menu-item-name">${esc(item.name)}</span>
+        ${sold ? `<span class="menu-sold-out">売り切れ</span>` : ""}
+        <span class="menu-item-dots"></span>
+        <span class="menu-item-price">${esc(item.price)}<small>円</small></span>
       </div>
-      ${item.description ? `<div class="menu-detail-desc">${esc(item.description)}</div>` : ""}
+      ${item.description ? `<div class="menu-item-desc">${esc(item.description)}</div>` : ""}
+      ${item.allergens ? `<div class="menu-item-allergens">${esc(item.allergens)}</div>` : ""}
     `;
     list.appendChild(li);
   });
 });
+
 </script>
 
 </body>

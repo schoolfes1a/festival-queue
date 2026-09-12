@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>設定 - 1A文化祭</title>
+<title>設定 - 喫茶一瑛</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body class="staff-page narrow">
@@ -98,8 +98,18 @@
     <div class="inline-form">
       <input type="text" id="new-name" placeholder="商品名">
       <input type="number" id="new-price" placeholder="価格" style="max-width:130px;" inputmode="numeric">
-      <input type="text" id="new-desc" placeholder="説明（任意）">
+    </div>
+    <div class="inline-form" style="margin-top:6px;">
+      <input type="text" id="new-desc" placeholder="材料（例：メロンソーダ、アイス）">
+      <input type="text" id="new-allergens" placeholder="アレルギー（例：乳・ゼラチン）">
       <button id="add-btn" class="green">追加</button>
+    </div>
+
+    <h2 style="margin-top:18px;">メニューの下に出す文章</h2>
+    <p class="note">お品書きの一番下に出ます。改行もそのまま反映されます。空にすると出ません。</p>
+    <textarea id="menu-note-input" rows="3" placeholder="例：ドリンクセットをご注文の方はカルピスウォーター・オレンジジュースからお選びください"></textarea>
+    <div class="btn-row" style="margin-top:6px;">
+      <button id="menu-note-save" class="green small">保存</button>
     </div>
   </section>
 
@@ -161,8 +171,10 @@
     <input type="text" id="edit-name">
     <label for="edit-price" style="margin-top:8px;">価格</label>
     <input type="number" id="edit-price" inputmode="numeric">
-    <label for="edit-desc" style="margin-top:8px;">説明（任意）</label>
+    <label for="edit-desc" style="margin-top:8px;">材料（任意）</label>
     <textarea id="edit-desc" rows="2"></textarea>
+    <label for="edit-allergens" style="margin-top:8px;">アレルギー（任意）</label>
+    <input type="text" id="edit-allergens" placeholder="乳・ゼラチン">
     <div class="btn-row" style="margin-top:14px;">
       <button id="edit-save" class="green" style="flex:1;">保存</button>
       <button id="edit-close" class="ghost" style="flex:1;">閉じる</button>
@@ -198,6 +210,8 @@ requireStaff((user) => {
     document.getElementById("dsp-tickets").checked = !!d.showTickets;
     document.getElementById("dsp-people").checked = !!d.showPeople;
     document.getElementById("dsp-wait").checked = !!d.showWait;
+    const noteEl = document.getElementById("menu-note-input");
+    if (document.activeElement !== noteEl) noteEl.value = d.menuNote || "";
     updateDisplayPreview();
   });
 
@@ -298,12 +312,16 @@ function renderMenu() {
 
   menuItems.forEach((item) => {
     const li = document.createElement("li");
+    const sold = !!item.soldOut;
     li.innerHTML = `
       <span>
         <strong>${esc(item.name)}</strong> ${yen(item.price)}
+        ${sold ? `<span class="sold-out-tag">売り切れ</span>` : ""}
         ${item.description ? `<br><small class="muted">${esc(item.description)}</small>` : ""}
+        ${item.allergens ? `<br><small class="muted">アレルギー: ${esc(item.allergens)}</small>` : ""}
       </span>
       <span class="btn-row">
+        <button class="${sold ? "green" : "ghost"} small" data-sold="${item.id}">${sold ? "販売を再開" : "売り切れ"}</button>
         <button class="ghost small" data-edit="${item.id}">編集</button>
         <button class="red small" data-delete="${item.id}">削除</button>
       </span>
@@ -312,6 +330,9 @@ function renderMenu() {
   });
 
   const find = (id) => menuItems.find((m) => m.id === id);
+
+  list.querySelectorAll("[data-sold]").forEach((btn) =>
+    btn.addEventListener("click", () => toggleSoldOut(find(btn.dataset.sold))));
 
   list.querySelectorAll("[data-edit]").forEach((btn) =>
     btn.addEventListener("click", () => openEdit(find(btn.dataset.edit))));
@@ -336,9 +357,11 @@ document.getElementById("add-btn").addEventListener("click", async () => {
   const nameEl = document.getElementById("new-name");
   const priceEl = document.getElementById("new-price");
   const descEl = document.getElementById("new-desc");
+  const allergensEl = document.getElementById("new-allergens");
   const name = nameEl.value.trim();
   const price = Number(priceEl.value);
   const description = descEl.value.trim();
+  const allergens = allergensEl.value.trim();
 
   if (!name || !Number.isFinite(price) || price <= 0) {
     toast("商品名と1以上の価格を入力してください", "err");
@@ -346,15 +369,38 @@ document.getElementById("add-btn").addEventListener("click", async () => {
   }
 
   try {
-    await addDoc(collection(db, "menu"), { name, price, description, createdAt: serverTimestamp() });
+    await addDoc(collection(db, "menu"), {
+      name, price, description, allergens, soldOut: false, createdAt: serverTimestamp(),
+    });
     logOperation(staffEmail, "メニュー追加", `${name}（¥${price}）`);
     toast(`「${name}」を追加しました`);
-    nameEl.value = ""; priceEl.value = ""; descEl.value = "";
+    nameEl.value = ""; priceEl.value = ""; descEl.value = ""; allergensEl.value = "";
     nameEl.focus();
   } catch (e) {
     console.error(e);
     toast("追加に失敗しました", "err");
   }
+});
+
+// 売り切れは当日よく切り替えるので、一覧から1タップで変える。
+// 品は消さずに残し、お客様画面では売り切れと分かるように出す。
+async function toggleSoldOut(item) {
+  if (!item) return;
+  const next = !item.soldOut;
+  try {
+    await updateDoc(doc(db, "menu", item.id), { soldOut: next });
+    logOperation(staffEmail, next ? "売り切れにした" : "販売を再開した", item.name);
+    toast(`「${item.name}」を${next ? "売り切れ" : "販売中"}にしました`);
+  } catch (e) {
+    console.error(e);
+    toast("更新に失敗しました", "err");
+  }
+}
+
+document.getElementById("menu-note-save").addEventListener("click", () => {
+  const text = document.getElementById("menu-note-input").value;
+  saveDisplay({ menuNote: text }, staffEmail, "メニューの注記を変更");
+  toast("メニューの下に出す文章を保存しました");
 });
 
 function openEdit(item) {
@@ -363,6 +409,7 @@ function openEdit(item) {
   document.getElementById("edit-name").value = item.name || "";
   document.getElementById("edit-price").value = item.price ?? "";
   document.getElementById("edit-desc").value = item.description || "";
+  document.getElementById("edit-allergens").value = item.allergens || "";
   document.getElementById("edit-modal").hidden = false;
 }
 
@@ -376,6 +423,7 @@ document.getElementById("edit-save").addEventListener("click", async () => {
   const name = document.getElementById("edit-name").value.trim();
   const price = Number(document.getElementById("edit-price").value);
   const description = document.getElementById("edit-desc").value.trim();
+  const allergens = document.getElementById("edit-allergens").value.trim();
 
   if (!name || !Number.isFinite(price) || price <= 0) {
     toast("商品名と1以上の価格を入力してください", "err");
@@ -383,7 +431,7 @@ document.getElementById("edit-save").addEventListener("click", async () => {
   }
 
   try {
-    await updateDoc(doc(db, "menu", editingId), { name, price, description });
+    await updateDoc(doc(db, "menu", editingId), { name, price, description, allergens });
     logOperation(
       staffEmail, "メニュー編集",
       before ? `${before.name}（¥${before.price}）→ ${name}（¥${price}）` : `${name}（¥${price}）`

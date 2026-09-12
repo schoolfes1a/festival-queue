@@ -934,3 +934,163 @@ body.display-page {
 .display-page button.ghost:hover { background: #263141; }
 .display-status { font-size: 12px; color: #5d6879; font-variant-numeric: tabular-nums; }
 .display-status.is-error { color: #ff5b4a; font-weight: 700; }
+
+/* ===== 13. 喫茶一瑛のお品書き =====
+   壁に貼るメニュー表と同じ体裁。クリーム地に焦げ茶、二重の飾り枠。
+   品名と価格を点線でつなぎ、その下に材料、さらに小さくアレルギーを置く。 */
+:root {
+  --menu-ink: #5b3a2e;
+  --menu-paper: #fffdf9;
+  --menu-line: #8a6552;
+}
+
+.site-head {
+  max-width: var(--page-max);
+  margin: 0 auto 20px;
+  text-align: center;
+}
+/* ロゴは既定で非表示。読み込めたときだけ出すので、
+   ファイルが無くても壊れた画像の印は出ない。 */
+.site-logo {
+  display: none;
+  width: min(340px, 78%);
+  height: auto;
+  margin: 0 auto;
+}
+.site-head.has-logo .site-logo { display: block; }
+.site-head .site-title { margin: 10px 0 0; color: var(--menu-ink); }
+/* ロゴに店名が入っているので、出せたら文字は伏せる */
+.site-head.has-logo .site-title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.menu-board {
+  max-width: min(var(--page-max), 680px);
+  margin: 0 auto 20px;
+  background: var(--menu-paper);
+  border: 3px solid var(--menu-ink);
+  border-radius: 18px;
+  padding: 8px;
+  box-shadow: var(--shadow);
+}
+.menu-board-inner {
+  border: 1px solid var(--menu-line);
+  border-radius: 12px;
+  padding: 26px 22px 30px;
+}
+
+.menu-board-title {
+  text-align: center;
+  font-size: clamp(30px, 9vw, 52px);
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--menu-ink);
+  margin: 0 0 22px;
+}
+
+.menu-list { list-style: none; padding: 0; margin: 0; }
+
+.menu-item {
+  position: relative;
+  padding: 0 0 20px 20px;
+  color: var(--menu-ink);
+}
+.menu-item::before {
+  content: "・";
+  position: absolute;
+  left: 0;
+  top: 0;
+  font-size: 18px;
+  line-height: 1.3;
+}
+.menu-item:last-child { padding-bottom: 4px; }
+
+.menu-item-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.menu-item-name {
+  font-size: clamp(17px, 4.6vw, 24px);
+  font-weight: 800;
+  line-height: 1.3;
+}
+/* 品名と価格を点線でつなぐ */
+.menu-item-dots {
+  flex: 1 1 auto;
+  min-width: 14px;
+  border-bottom: 2px dotted var(--menu-line);
+  transform: translateY(-4px);
+}
+.menu-item-price {
+  font-size: clamp(18px, 5vw, 26px);
+  font-weight: 800;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.menu-item-price small { font-size: 0.62em; margin-left: 2px; font-weight: 700; }
+
+.menu-item-desc {
+  font-size: clamp(13px, 3.4vw, 17px);
+  margin-top: 3px;
+  line-height: 1.5;
+}
+.menu-item-allergens {
+  font-size: clamp(11px, 2.7vw, 13px);
+  margin-top: 2px;
+  padding-left: 1.2em;
+  color: #8a6552;
+  line-height: 1.5;
+}
+
+/* 売り切れ。消さずに残して、売り切れだと分かるようにする */
+.menu-item.is-sold-out .menu-item-name,
+.menu-item.is-sold-out .menu-item-dots,
+.menu-item.is-sold-out .menu-item-price,
+.menu-item.is-sold-out .menu-item-desc,
+.menu-item.is-sold-out .menu-item-allergens { opacity: 0.38; }
+/* 価格に重ねず、品名のとなりに置く */
+.menu-sold-out {
+  flex: 0 0 auto;
+  background: var(--danger);
+  color: #fff;
+  font-size: clamp(11px, 3vw, 13px);
+  font-weight: 800;
+  border-radius: 6px;
+  padding: 2px 8px;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.menu-board-note {
+  margin: 22px 0 0;
+  text-align: center;
+  font-size: clamp(13px, 3.4vw, 17px);
+  line-height: 1.7;
+  color: var(--menu-ink);
+  white-space: pre-wrap;
+}
+
+/* スタッフ画面の一覧に付ける売り切れの印 */
+.sold-out-tag {
+  display: inline-block;
+  margin-left: 6px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 4px;
+  padding: 2px 7px;
+  vertical-align: 1px;
+}
+
+.menu-empty {
+  text-align: center;
+  color: var(--menu-line);
+  padding: 20px 0;
+}

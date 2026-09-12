@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>受付 - 1A文化祭</title>
+<title>受付 - 喫茶一瑛</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body class="staff-page">
@@ -100,6 +100,14 @@
         <p class="note" style="margin:12px 0 0;">
           表示するかどうかは<a href="settings.html">設定</a>タブで切り替えます。
         </p>
+      </section>
+
+      <section class="card">
+        <div class="card-header">
+          <h2>売り切れ</h2>
+        </div>
+        <p class="note">押すとお客様のメニューにすぐ反映されます。品は消えず、売り切れと表示されます。</p>
+        <ul class="menu-list-view" id="soldout-list"></ul>
       </section>
 
       <section class="card" id="status-card">
@@ -200,12 +208,12 @@
 
 <script type="module">
 import {
-  db, requireStaff, mountShell, subscribeOrders, subscribeTicketState, subscribeConfig, syncBoard, setOrderStatus, setCurrentNumber, updateNavBadges, esc, fmtClock, toast, effectiveStatus, isToday, DEFAULT_CONFIG, purchaseAndAdvance, subscribeDisplay, saveDisplay, DEFAULT_DISPLAY
+  db, requireStaff, mountShell, subscribeOrders, subscribeTicketState, subscribeConfig, syncBoard, setOrderStatus, setCurrentNumber, updateNavBadges, esc, fmtClock, toast, effectiveStatus, isToday, DEFAULT_CONFIG, purchaseAndAdvance, subscribeDisplay, saveDisplay, DEFAULT_DISPLAY, subscribeMenu
 } from "./app.js";
 import {
-  doc, setDoc, runTransaction, serverTimestamp
+  doc, setDoc, runTransaction, serverTimestamp, updateDoc
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
-import { logOrder } from "./logger.js";
+import { logOrder, logOperation } from "./logger.js";
 
 mountShell({ active: "reception", title: "受付" });
 
@@ -215,6 +223,7 @@ let currentNumber = 0;
 let latestTicket = 0;
 let config = { ...DEFAULT_CONFIG };
 let dsp = { ...DEFAULT_DISPLAY };
+let menuItems = [];
 let issuing = false;
 
 
@@ -228,6 +237,11 @@ requireStaff((user) => {
       : "自動呼び出しは無効です。番号は手動で進めてください。";
     applyMode();
     render();
+  });
+
+  subscribeMenu((items) => {
+    menuItems = items;
+    renderSoldOut();
   });
 
   subscribeDisplay((d) => {
@@ -297,6 +311,44 @@ function renderStats() {
   document.getElementById("stat-sold").textContent = sold;
 
   updateNavBadges(orders, currentNumber);
+}
+
+// ===== 売り切れ =====
+// 当日よく触るので受付からも切り替えられるようにする。
+// 設定タブの一覧と同じことができる。
+function renderSoldOut() {
+  const list = document.getElementById("soldout-list");
+  list.innerHTML = "";
+
+  if (menuItems.length === 0) {
+    list.innerHTML = `<p class="empty">メニューが登録されていません</p>`;
+    return;
+  }
+
+  menuItems.forEach((item) => {
+    const sold = !!item.soldOut;
+    const li = document.createElement("li");
+    li.innerHTML = `
+      <span>${esc(item.name)}${sold ? `<span class="sold-out-tag">売り切れ</span>` : ""}</span>
+      <button class="${sold ? "green" : "ghost"} small" data-sold="${item.id}">${sold ? "販売を再開" : "売り切れ"}</button>
+    `;
+    list.appendChild(li);
+  });
+
+  list.querySelectorAll("[data-sold]").forEach((btn) =>
+    btn.addEventListener("click", async () => {
+      const item = menuItems.find((m) => m.id === btn.dataset.sold);
+      if (!item) return;
+      const next = !item.soldOut;
+      try {
+        await updateDoc(doc(db, "menu", item.id), { soldOut: next });
+        logOperation(staffEmail, next ? "売り切れにした" : "販売を再開した", item.name);
+        toast(`「${item.name}」を${next ? "売り切れ" : "販売中"}にしました`);
+      } catch (e) {
+        console.error(e);
+        toast("更新に失敗しました", "err");
+      }
+    }));
 }
 
 // ===== お客様画面の表示（人数・待ち時間） =====
