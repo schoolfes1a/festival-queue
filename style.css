@@ -462,6 +462,22 @@ th { background: #f7f9fb; font-size: 13px; color: var(--muted); }
   padding-right: 4px;
 }
 
+/* 整理券を使わない運用。残るカードは1枚なので、1列で中央に置く。 */
+.reception-layout.is-tickets-off {
+  grid-template-columns: minmax(0, 520px);
+  justify-content: center;
+}
+
+.reception-off-note {
+  max-width: var(--page-max);
+  margin: 0 auto 12px;
+  background: #fff6e5;
+  border: 1px solid #f5dda8;
+  color: #8a5300;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
 /* ワンオペモード：受付1台で提供まで回すので列が増える。 */
 /* 1台で全部やるので、4列とも画面内に収まることを優先する。
    よく触る「呼び出し中」と「提供待ち」が伸び縮みする列。 */

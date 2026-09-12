@@ -12,11 +12,16 @@
 
 <main>
 
+  <p class="note reception-off-note" id="tickets-off-note" hidden>
+    整理券の番号を表示しない設定になっています。整理券まわりの操作は隠してあります。
+    <a href="settings.html">設定</a>タブで戻せます。
+  </p>
+
   <div class="reception-layout" id="layout">
 
     <!-- 左：呼び出しと発行 -->
     <div class="col col-left">
-      <section class="card">
+      <section class="card" id="call-card">
         <div class="card-header">
           <h2>呼び出し番号</h2>
           <span class="muted" style="font-size:13px;">お客様画面に出ます</span>
@@ -40,7 +45,7 @@
         <p class="note" id="autocall-note" style="margin:10px 0 0;"></p>
       </section>
 
-      <section class="card">
+      <section class="card" id="issue-card">
         <div class="card-header">
           <h2>整理券の発行</h2>
         </div>
@@ -97,7 +102,7 @@
         </p>
       </section>
 
-      <section class="card">
+      <section class="card" id="status-card">
         <div class="card-header">
           <h2>いまの状況</h2>
         </div>
@@ -132,7 +137,7 @@
     </div>
 
     <!-- 中央：呼び出し中 -->
-    <div class="col col-center">
+    <div class="col col-center" id="col-center">
       <section class="card">
         <div class="card-header">
           <h2>呼び出し中</h2>
@@ -158,8 +163,18 @@
       </section>
     </div>
 
+    <!-- 何も出すものが無いとき -->
+    <div class="col" id="col-empty" hidden>
+      <section class="card">
+        <p class="empty">
+          お客様画面に出すものがありません。<a href="settings.html">設定</a>タブで
+          「整理券の番号」「お待ちの人数」「待ち時間の目安」のいずれかをONにしてください。
+        </p>
+      </section>
+    </div>
+
     <!-- 右：呼び飛ばし -->
-    <div class="col col-right">
+    <div class="col col-right" id="col-right">
       <section class="card">
         <div class="card-header">
           <h2>呼び飛ばし</h2>
@@ -218,6 +233,7 @@ requireStaff((user) => {
   subscribeDisplay((d) => {
     dsp = d;
     renderDisplayCard();
+    applyMode();
   });
 
   subscribeTicketState((state) => {
@@ -248,10 +264,24 @@ function render() {
 // 「提供済み」を使う設定のときだけ、提供待ちの列を出す。
 // 提供の工程を使わないなら購入で完了なので、増える列は無い。
 function applyMode() {
+  // 整理券を出さない運用なら、整理券まわりの操作は丸ごと隠す。
+  // 残るのは「お客様画面の表示」（人数・待ち時間）だけになる。
+  const tickets = !!dsp.showTickets;
   const solo = !!config.soloMode;
-  const showServe = solo && !!config.useServed;
-  document.getElementById("layout").classList.toggle("is-solo", showServe);
+  const showServe = tickets && solo && !!config.useServed;
+  const layout = document.getElementById("layout");
+
+  ["call-card", "issue-card", "status-card", "col-center", "col-right"]
+    .forEach((id) => { document.getElementById(id).hidden = !tickets; });
   document.getElementById("col-serve").hidden = !showServe;
+  document.getElementById("tickets-off-note").hidden = tickets;
+
+  layout.classList.toggle("is-solo", showServe);
+  layout.classList.toggle("is-tickets-off", !tickets);
+
+  // 整理券も人数も待ち時間も出さないなら、受付画面に置くものが無い
+  const nothing = !tickets && !dsp.showPeople && !dsp.showWait;
+  document.getElementById("col-empty").hidden = !nothing;
 }
 
 // ===== 状況 =====
