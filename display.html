@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>呼び出し番号 - 1A文化祭</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="display-page">
+
+<div class="display-wrap">
+  <header class="display-head">
+    <span class="display-title">1A文化祭</span>
+    <span class="display-label">お呼びしている番号</span>
+  </header>
+
+  <main class="display-main">
+    <div class="display-numbers" id="numbers">
+      <div class="display-empty" id="empty">準備中です</div>
+    </div>
+  </main>
+
+  <footer class="display-foot" id="foot" hidden>
+    <span class="display-foot-label">お越しでない番号</span>
+    <div class="display-foot-numbers" id="skipped"></div>
+  </footer>
+</div>
+
+<div class="display-tools" id="tools">
+  <button id="fs-btn" class="ghost small">全画面</button>
+  <a class="text-link" href="index.html">お客様ページ</a>
+  <span class="display-status" id="status">接続中…</span>
+</div>
+
+<script type="module">
+import { db } from "./firebase-config.js";
+import { doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+import { logAccess } from "./logger.js";
+
+logAccess("display.html");
+
+const numbersEl = document.getElementById("numbers");
+const skippedEl = document.getElementById("skipped");
+const footEl = document.getElementById("foot");
+const statusEl = document.getElementById("status");
+
+// 数が少ないほど大きく出す。画面の高さを基準にするので、
+// 縦長のタブレットでも横長のモニターでもはみ出さない。
+function sizeFor(count) {
+  if (count <= 1) return "34vh";
+  if (count <= 2) return "28vh";
+  if (count <= 4) return "20vh";
+  if (count <= 6) return "15vh";
+  if (count <= 9) return "12vh";
+  return "9vh";
+}
+
+function renderCalling(list) {
+  numbersEl.innerHTML = "";
+
+  if (list.length === 0) {
+    const el = document.createElement("div");
+    el.className = "display-empty";
+    el.textContent = "ただいまお呼びしている番号はありません";
+    numbersEl.appendChild(el);
+    return;
+  }
+
+  numbersEl.style.setProperty("--num-size", sizeFor(list.length));
+  // 新しく呼ばれた番号ほど手前に出したいので降順
+  [...list].sort((a, b) => b - a).forEach((n) => {
+    const el = document.createElement("div");
+    el.className = "display-num";
+    el.textContent = n;
+    numbersEl.appendChild(el);
+  });
+}
+
+function renderSkipped(list) {
+  if (list.length === 0) {
+    footEl.hidden = true;
+    return;
+  }
+  footEl.hidden = false;
+  skippedEl.innerHTML = "";
+  [...list].sort((a, b) => a - b).forEach((n) => {
+    const el = document.createElement("span");
+    el.className = "display-skip";
+    el.textContent = n;
+    skippedEl.appendChild(el);
+  });
+}
+
+onSnapshot(doc(db, "state", "board"), (snap) => {
+  const data = snap.data() || {};
+  renderCalling(Array.isArray(data.calling) ? data.calling : []);
+  renderSkipped(Array.isArray(data.skipped) ? data.skipped : []);
+
+  const t = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  statusEl.textContent = `${pad(t.getHours())}:${pad(t.getMinutes())}:${pad(t.getSeconds())} 更新`;
+  statusEl.classList.remove("is-error");
+}, (err) => {
+  console.error("呼び出し状況の取得に失敗しました", err);
+  statusEl.textContent = "通信が切れています";
+  statusEl.classList.add("is-error");
+});
+
+// ===== 全画面 =====
+document.getElementById("fs-btn").addEventListener("click", async () => {
+  try {
+    if (document.fullscreenElement) await document.exitFullscreen();
+    else await document.documentElement.requestFullscreen();
+  } catch (e) {
+    console.error("全画面にできませんでした", e);
+  }
+});
+
+document.addEventListener("fullscreenchange", () => {
+  document.getElementById("fs-btn").textContent = document.fullscreenElement ? "全画面を解除" : "全画面";
+});
+
+// 操作がしばらくないとボタン類を隠す（映しっぱなしでも邪魔にならないように）
+const tools = document.getElementById("tools");
+let hideTimer = null;
+function wake() {
+  tools.classList.remove("is-idle");
+  clearTimeout(hideTimer);
+  hideTimer = setTimeout(() => tools.classList.add("is-idle"), 4000);
+}
+["mousemove", "touchstart", "keydown"].forEach((ev) => document.addEventListener(ev, wake));
+wake();
+</script>
+
+</body>
+</html>

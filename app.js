@@ -163,6 +163,7 @@ export function mountShell({ active, title }) {
       <h1>${esc(title)}</h1>
       <div class="topbar-right">
         <span class="staff-chip" id="staff-label">…</span>
+        <a class="text-link" href="display.html" target="_blank" rel="noopener">番号表示 ↗</a>
         <a class="text-link" href="index.html" target="_blank" rel="noopener">お客様画面 ↗</a>
         <button id="logout-btn" class="gray small">ログアウト</button>
       </div>
