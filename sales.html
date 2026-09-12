@@ -31,10 +31,6 @@
         <div class="stat-value status-purchased" id="c-bought">0</div>
         <div class="stat-label">食券を買った組</div>
       </div>
-      <div class="stat">
-        <div class="stat-value status-entered" id="c-entered">0</div>
-        <div class="stat-label">入店した組</div>
-      </div>
     </div>
 
     <div class="stat-row" style="margin-top:10px;">
@@ -115,13 +111,12 @@ function targetOrders() {
 }
 
 // 工程は後戻りしない前提で数える。
-// 入店済みの整理券は食券も買っているので、購入の数にも含める。
+// 提供済みの整理券は食券も買っているので、購入の数にも含める。
 function counts(list) {
   const is = (o, ...st) => st.includes(o.status);
   return {
     issued:    list.length,
-    bought:    list.filter((o) => is(o, "purchased", "entered", "served")).length,
-    entered:   list.filter((o) => is(o, "entered", "served")).length,
+    bought:    list.filter((o) => is(o, "purchased", "served")).length,
     served:    list.filter((o) => is(o, "served")).length,
     skipped:   list.filter((o) => is(o, "skipped")).length,
     cancelled: list.filter((o) => is(o, "cancelled")).length,
@@ -135,7 +130,6 @@ function render() {
   document.getElementById("range-note").textContent = RANGE_NOTE[range];
   document.getElementById("c-issued").textContent = c.issued;
   document.getElementById("c-bought").textContent = c.bought;
-  document.getElementById("c-entered").textContent = c.entered;
   document.getElementById("c-served").textContent = c.served;
   document.getElementById("c-skipped").textContent = c.skipped;
   document.getElementById("c-cancelled").textContent = c.cancelled;
@@ -149,7 +143,6 @@ function renderFunnel(c) {
   const rows = [
     { name: "整理券を発行", n: c.issued },
     { name: "食券を購入",   n: c.bought },
-    { name: "入店",         n: c.entered },
   ];
   if (config.useServed) rows.push({ name: "提供", n: c.served });
 
@@ -230,7 +223,6 @@ document.getElementById("csv-btn").addEventListener("click", () => {
   const rows = [
     ["整理券を発行", c.issued],
     ["食券を購入", c.bought],
-    ["入店", c.entered],
   ];
   if (config.useServed) rows.push(["提供", c.served]);
   rows.push(["呼び飛ばし", c.skipped], ["取消", c.cancelled]);

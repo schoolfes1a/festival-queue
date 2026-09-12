@@ -23,7 +23,6 @@
   --danger-dark: #9c2d20;
   --warn: #d68a00;
   --info: #2b6cb0;
-  --enter: #7c3aed;
   --gray: #7c8797;
   --gray-dark: #626c7a;
   --radius: 12px;
@@ -230,11 +229,10 @@ th { background: #f7f9fb; font-size: 13px; color: var(--muted); }
 .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; margin-top: 10px; }
 .table-scroll table { margin-top: 0; }
 
-/* 工程ごとの色。受付→購入→入店→提供 の順に進む。 */
+/* 工程ごとの色。発行→呼び出し→購入→提供 の順に進む。 */
 .status-issued    { color: var(--muted);  font-weight: 700; }
 .status-called    { color: var(--danger); font-weight: 700; }
 .status-purchased { color: var(--info);   font-weight: 700; }
-.status-entered   { color: var(--enter);  font-weight: 700; }
 .status-served    { color: var(--brand);  font-weight: 700; }
 .status-skipped   { color: var(--warn);   font-weight: 700; }
 .status-cancelled { color: var(--muted);  text-decoration: line-through; }
@@ -344,13 +342,12 @@ th { background: #f7f9fb; font-size: 13px; color: var(--muted); }
 .order-card.is-issued    { border-left-color: #c9ced6; }
 .order-card.is-called    { border-left-color: var(--danger); background: #fff6f5; }
 .order-card.is-purchased { border-left-color: var(--info); }
-.order-card.is-entered   { border-left-color: var(--enter); }
 .order-card.is-served    { border-left-color: var(--brand); }
 .order-card.is-skipped   { border-left-color: var(--warn); background: #fffaf0; }
 .order-card.is-cancelled { border-left-color: #c9ced6; background: #fafbfc; }
 .order-card.is-pending   { border-left-color: #c9ced6; }
 
-/* 呼び出し番号を過ぎたのに未入店＝取りこぼし候補 */
+/* 取りこぼし候補の強調 */
 .order-card.is-overdue {
   border-left-color: var(--danger);
   background: #fff6f5;
@@ -423,8 +420,8 @@ th { background: #f7f9fb; font-size: 13px; color: var(--muted); }
 .split > .card { margin: 0; max-width: none; }
 
 /* 受付ページの3カラム
-   左：呼び出し番号と状況 ／ 中央：注文受付 ／ 右：入店管理
-   入店管理は常に画面の右端に置き、注文を取りながら横目で見られるようにする。 */
+   左：呼び出し番号と状況 ／ 中央：呼び出し中 ／ 右：呼び飛ばし
+   呼び飛ばしは常に画面の右端に置き、受付をしながら横目で見られるようにする。 */
 .reception-layout {
   display: grid;
   gap: 16px;
@@ -449,10 +446,9 @@ th { background: #f7f9fb; font-size: 13px; color: var(--muted); }
   padding-right: 4px;
 }
 
-/* ワンオペモード：受付1台で入店・提供まで回すので列が増える。
-   よく触る「呼び出し中」と「入店待ち」に広い列をあてる。 */
+/* ワンオペモード：受付1台で提供まで回すので列が増える。 */
 /* 1台で全部やるので、4列とも画面内に収まることを優先する。
-   よく触る「呼び出し中」と「入店待ち」が伸び縮みする列。 */
+   よく触る「呼び出し中」と「提供待ち」が伸び縮みする列。 */
 .reception-layout.is-solo {
   grid-template-columns:
     minmax(250px, 285px) minmax(255px, 1fr) minmax(255px, 1fr) minmax(270px, 310px);
@@ -476,7 +472,7 @@ th { background: #f7f9fb; font-size: 13px; color: var(--muted); }
   .reception-layout,
   .reception-layout.is-solo { grid-template-columns: 1fr; }
   .reception-layout .col-right,
-  .reception-layout .col-enter { grid-column: auto; }
+  .reception-layout .col-serve { grid-column: auto; }
 }
 
 /* 狭い列に入れても等幅で並ぶよう、flex ではなく grid で折り返す */

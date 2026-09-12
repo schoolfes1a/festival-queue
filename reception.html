@@ -72,11 +72,11 @@
           </div>
           <div class="stat">
             <div class="stat-value status-purchased" id="stat-purchased">0</div>
-            <div class="stat-label">入店待ち</div>
+            <div class="stat-label">購入済み</div>
           </div>
           <div class="stat">
-            <div class="stat-value status-entered" id="stat-entered">0</div>
-            <div class="stat-label">入店済み</div>
+            <div class="stat-value status-served" id="stat-served">0</div>
+            <div class="stat-label">提供済み</div>
           </div>
         </div>
         <div class="stat-row" style="margin-top:10px;">
@@ -103,26 +103,26 @@
           <span class="muted" style="font-size:13px;">番号を呼んだ順</span>
         </div>
         <p class="note">
-          お客様が来たら「食券を買った」を押すと入店待ちに移ります。来なければ「呼び飛ばし」に送ると、
+          お客様が来たら「食券を買った」を押してください。来なければ「呼び飛ばし」に送ると、
           お客様画面に番号が出て後から戻ってこられます。
         </p>
         <div class="board" id="called-board"></div>
       </section>
     </div>
 
-    <!-- 入店待ち（ワンオペモードのみ） -->
-    <div class="col col-enter" id="col-enter" hidden>
+    <!-- 提供待ち（ワンオペモード かつ 提供済みを使う設定のとき） -->
+    <div class="col col-serve" id="col-serve" hidden>
       <section class="card">
         <div class="card-header">
-          <h2>入店待ち</h2>
+          <h2>提供待ち</h2>
           <span class="muted" style="font-size:13px;">食券を買った順</span>
         </div>
-        <p class="note">食券を買って並んでいるお客様です。席が空いたら「入店」を押してください。</p>
-        <div class="board" id="enter-board"></div>
+        <p class="note">食券を買ったお客様です。お渡ししたら「提供済み」を押してください。</p>
+        <div class="board" id="serve-board"></div>
       </section>
     </div>
 
-    <!-- 右：呼び飛ばし（＋ワンオペ時は入店済み） -->
+    <!-- 右：呼び飛ばし -->
     <div class="col col-right">
       <section class="card">
         <div class="card-header">
@@ -130,14 +130,6 @@
         </div>
         <p class="note">呼んでも来なかった番号です。お客様画面にも表示されます。</p>
         <div class="board" id="skipped-board"></div>
-      </section>
-
-      <section class="card" id="served-card" hidden>
-        <div class="card-header">
-          <h2>入店済み</h2>
-          <span class="muted" style="font-size:13px;">提供待ち</span>
-        </div>
-        <div class="board" id="entered-board"></div>
       </section>
     </div>
 
@@ -157,7 +149,7 @@
 
 <script type="module">
 import {
-  db, requireStaff, mountShell, subscribeOrders, subscribeTicketState, subscribeConfig, syncBoard, setOrderStatus, setCurrentNumber, updateNavBadges, esc, fmtClock, toast, effectiveStatus, isToday, DEFAULT_CONFIG, purchaseAndAdvance, markEntered
+  db, requireStaff, mountShell, subscribeOrders, subscribeTicketState, subscribeConfig, syncBoard, setOrderStatus, setCurrentNumber, updateNavBadges, esc, fmtClock, toast, effectiveStatus, isToday, DEFAULT_CONFIG, purchaseAndAdvance
 } from "./app.js";
 import {
   doc, setDoc, runTransaction, serverTimestamp
@@ -206,18 +198,18 @@ function render() {
   renderStats();
   renderCalled();
   renderSkipped();
-  renderEnter();
-  renderEntered();
+  renderServe();
   syncBoard(orders, currentNumber);
 }
 
-// ワンオペモード：受付1台で入店・提供まで面倒を見る。
-// 「入店待ち」の列を出し、「提供済み」を使う設定なら「入店済み」も出す。
+// ワンオペモード：受付1台で提供まで面倒を見る。
+// 「提供済み」を使う設定のときだけ、提供待ちの列を出す。
+// 提供の工程を使わないなら購入で完了なので、増える列は無い。
 function applyMode() {
   const solo = !!config.soloMode;
-  document.getElementById("layout").classList.toggle("is-solo", solo);
-  document.getElementById("col-enter").hidden = !solo;
-  document.getElementById("served-card").hidden = !(solo && config.useServed);
+  const showServe = solo && !!config.useServed;
+  document.getElementById("layout").classList.toggle("is-solo", showServe);
+  document.getElementById("col-serve").hidden = !showServe;
 }
 
 // ===== 状況 =====
@@ -226,7 +218,7 @@ function renderStats() {
   const count = (s) => orders.filter((o) => eff(o) === s).length;
   document.getElementById("stat-called").textContent = count("called");
   document.getElementById("stat-purchased").textContent = count("purchased");
-  document.getElementById("stat-entered").textContent = count("entered") + count("served");
+  document.getElementById("stat-served").textContent = count("served");
   document.getElementById("stat-skipped").textContent = count("skipped");
 
   const sold = orders.filter((o) => o.status !== "cancelled" && isToday(o.purchasedAt)).length;
@@ -452,7 +444,7 @@ function renderSkipped() {
         <div class="order-meta">発行 ${fmtClock(order.createdAt)}</div>
       </div>
       <div class="order-actions">
-        <button class="green" data-buy2="${order.id}">来たので入店待ちへ</button>
+        <button class="green" data-buy2="${order.id}">来たので購入へ</button>
         <button class="red small" data-cancel2="${order.id}">取消</button>
       </div>
     `;
@@ -474,18 +466,19 @@ function renderSkipped() {
     }));
 }
 
-// ===== 入店待ち（ワンオペモード） =====
-function renderEnter() {
-  const board = document.getElementById("enter-board");
-  if (!board || document.getElementById("col-enter").hidden) return;
+// ===== 提供待ち（ワンオペモード） =====
+function renderServe() {
+  const board = document.getElementById("serve-board");
+  if (!board || document.getElementById("col-serve").hidden) return;
 
+  // 旧データの読み替えを通すため、状態の判定は effectiveStatus に揃える
   const list = orders
-    .filter((o) => o.status === "purchased")
+    .filter((o) => effectiveStatus(o, currentNumber) === "purchased")
     .sort((a, b) => Number(a.ticketNumber) - Number(b.ticketNumber));
 
   board.innerHTML = "";
   if (list.length === 0) {
-    board.innerHTML = `<p class="empty">入店待ちのお客様はいません</p>`;
+    board.innerHTML = `<p class="empty">提供待ちはありません</p>`;
     return;
   }
 
@@ -499,58 +492,17 @@ function renderEnter() {
       </div>
       ${order.note ? `<div class="order-note">${esc(order.note)}</div>` : ""}
       <div class="order-actions">
-        <button class="green" data-enter="${order.id}">入店</button>
-      </div>
-    `;
-    board.appendChild(card);
-  });
-
-  board.querySelectorAll("[data-enter]").forEach((b) =>
-    b.addEventListener("click", () => {
-      const order = orders.find((o) => o.id === b.dataset.enter);
-      if (!order) return;
-      markEntered(order, staffEmail);
-    }));
-}
-
-// ===== 入店済み（ワンオペモード かつ 提供済みを使う設定のとき） =====
-function renderEntered() {
-  const board = document.getElementById("entered-board");
-  if (!board || document.getElementById("served-card").hidden) return;
-
-  const list = orders
-    .filter((o) => o.status === "entered")
-    .sort((a, b) => Number(a.ticketNumber) - Number(b.ticketNumber));
-
-  board.innerHTML = "";
-  if (list.length === 0) {
-    board.innerHTML = `<p class="empty">提供待ちはありません</p>`;
-    return;
-  }
-
-  list.forEach((order) => {
-    const card = document.createElement("div");
-    card.className = "order-card is-entered";
-    card.innerHTML = `
-      <div class="order-head">
-        <div class="order-num">${esc(order.ticketNumber)}<small>番</small></div>
-        <div class="order-meta">入店 ${fmtClock(order.enteredAt || order.updatedAt)}</div>
-      </div>
-      ${order.note ? `<div class="order-note">${esc(order.note)}</div>` : ""}
-      <div class="order-actions">
         <button class="green" data-serve="${order.id}">提供済み</button>
-        <button class="ghost small" data-back="${order.id}">入店待ちに戻す</button>
       </div>
     `;
     board.appendChild(card);
   });
 
-  const find = (id) => orders.find((o) => o.id === id);
   board.querySelectorAll("[data-serve]").forEach((b) =>
-    b.addEventListener("click", () => setOrderStatus(find(b.dataset.serve), "served", staffEmail)));
-  board.querySelectorAll("[data-back]").forEach((b) =>
-    b.addEventListener("click", () => setOrderStatus(find(b.dataset.back), "purchased", staffEmail)));
+    b.addEventListener("click", () =>
+      setOrderStatus(orders.find((o) => o.id === b.dataset.serve), "served", staffEmail)));
 }
+
 </script>
 
 </body>

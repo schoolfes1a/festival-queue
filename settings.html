@@ -23,7 +23,7 @@
       <input type="checkbox" id="cfg-solo">
       <span>
         <strong>ワンオペモード（受付1台で全部やる）</strong>
-        <small>受付画面に「入店待ち」と「入店済み」の列が増えて、食券の購入から入店・提供まで1画面で完結します。提供リストのタブへ移動する必要がなくなります。</small>
+        <small>受付画面に「提供待ち」の列が増えて、食券の購入から提供まで1画面で完結します。提供リストのタブへ移動する必要がなくなります。下の「提供済みの工程を使う」がONのときだけ列が出ます。</small>
       </span>
     </label>
 
@@ -31,7 +31,7 @@
       <input type="checkbox" id="cfg-served">
       <span>
         <strong>「提供済み」の工程を使う</strong>
-        <small>入店のあとに提供済みの記録を残します。使わない場合は入店で完了になり、提供リストから「提供済み」タブとボタンが消えます。</small>
+        <small>食券を渡したあとに提供済みの記録を残します。使わない場合は食券の購入で完了になり、提供リストから「提供済み」タブとボタンが消えます。</small>
       </span>
     </label>
 
@@ -39,7 +39,7 @@
       <input type="checkbox" id="cfg-autocall">
       <span>
         <strong>食券が売れたら自動で次を呼ぶ</strong>
-        <small>「食券を買った」を押すと、その整理券番号の指定した数だけ先まで呼び出し番号が進みます。すでに先を呼んでいるときは戻しません。入店の操作では進みません。</small>
+        <small>「食券を買った」を押すと、その整理券番号の指定した数だけ先まで呼び出し番号が進みます。すでに先を呼んでいるときは戻しません。</small>
       </span>
     </label>
 
@@ -201,8 +201,8 @@ function updatePreview() {
 document.getElementById("cfg-solo").addEventListener("change", (e) => {
   saveConfig({ soloMode: e.target.checked }, staffEmail);
   toast(e.target.checked
-    ? "ワンオペモードにしました。受付画面だけで入店まで操作できます"
-    : "通常モードに戻しました。入店の操作は提供リストタブです");
+    ? "ワンオペモードにしました。受付画面だけで提供まで操作できます"
+    : "通常モードに戻しました。提供の操作は提供リストタブです");
 });
 
 document.getElementById("cfg-served").addEventListener("change", (e) => {

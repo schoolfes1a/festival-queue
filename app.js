@@ -2,7 +2,7 @@
 // スタッフ画面の共通モジュール
 //
 // 運用の流れ:
-//   ①整理券を発行  ②番号を呼ぶ  ③食券を購入  ④入店待ち  ⑤入店  ⑥提供(任意)
+//   ①整理券を発行  ②番号を呼ぶ  ③食券を購入  ④提供(任意)
 //
 // 「呼び出し中」は状態として保存しない。
 //   整理券番号 <= 呼び出し番号  かつ  まだ購入していない
@@ -36,16 +36,18 @@ export const NAV = [
 export const STATUS = {
   issued:    { label: "呼び出し前", cls: "status-issued" },
   called:    { label: "呼び出し中", cls: "status-called" },
-  purchased: { label: "入店待ち",   cls: "status-purchased" },
-  entered:   { label: "入店済み",   cls: "status-entered" },
+  purchased: { label: "購入済み",   cls: "status-purchased" },
   served:    { label: "提供済み",   cls: "status-served" },
   skipped:   { label: "呼び飛ばし", cls: "status-skipped" },
   cancelled: { label: "キャンセル", cls: "status-cancelled" },
 };
 
-// 旧データ（pending / 発行と同時に食券を売っていた頃）の読み替え
+// 旧データの読み替え。
+//   pending  … 発行と同時に食券を売っていた頃の状態
+//   entered  … 入店の工程があった頃の状態。いまは購入済みと同じ扱い
 export function normalizeStatus(s) {
   if (!s || s === "pending") return "issued";
+  if (s === "entered") return "purchased";
   return s;
 }
 
@@ -61,7 +63,7 @@ export const DEFAULT_CONFIG = {
   useServed: true,  // 「提供済み」の工程を使うか
   autoCall:  true,  // 食券が売れたら呼び出し番号を自動で進めるか
   lookahead: 2,     // 食券が売れた番号の何個先まで呼ぶか
-  soloMode:  false, // 受付1台で入店・提供まで全部やるか
+  soloMode:  false, // 受付1台で提供まで全部やるか
 };
 
 // ===== 表示ヘルパー =====
@@ -285,13 +287,13 @@ export async function syncBoard(orders, currentNumber) {
 }
 
 // ===== タブのバッジ =====
-// 受付＝呼び出し中の件数、提供リスト＝入店待ち＋入店済みの件数。
+// 受付＝呼び出し中の件数、提供リスト＝購入済み（提供待ち）の件数。
 // どのページを開いていても、いまどこに何件たまっているか分かるようにする。
 export function updateNavBadges(orders, currentNumber) {
   const eff = (o) => effectiveStatus(o, currentNumber);
   const counts = {
     called: orders.filter((o) => eff(o) === "called").length,
-    waiting: orders.filter((o) => eff(o) === "purchased" || eff(o) === "entered").length,
+    waiting: orders.filter((o) => eff(o) === "purchased").length,
   };
   document.querySelectorAll("[data-badge]").forEach((el) => {
     const n = counts[el.dataset.badge] || 0;
@@ -322,7 +324,6 @@ export function createArrivalWatcher(matches) {
 const STATUS_ACTION = {
   issued:    "呼び出しに戻す",
   purchased: "食券購入",
-  entered:   "入店",
   served:    "提供済み",
   skipped:   "呼び飛ばし",
   cancelled: "キャンセル",
@@ -372,10 +373,10 @@ export async function setCurrentNumber(value, staffEmail, reason) {
   }
 }
 
-// 食券が売れたら入店待ちへ送り、その番号の lookahead 個先まで自動で呼ぶ。
+// 食券が売れたら購入済みにして、その番号の lookahead 個先まで自動で呼ぶ。
 //
-// 入店したかどうかは現場で追えないため、列が進んだ合図として
-// 「食券が売れたこと」を使う。既に先を呼んでいる場合は戻さない。
+// 列が進んだ合図として「食券が売れたこと」を使う。
+// 既に先を呼んでいる場合は戻さない。
 export async function purchaseAndAdvance(order, staffEmail, config, currentNumber) {
   if (!order) {
     toast("対象の整理券が見つかりませんでした", "err");
@@ -388,7 +389,7 @@ export async function purchaseAndAdvance(order, staffEmail, config, currentNumbe
       updatedAt: serverTimestamp(),
     });
     logOrder(staffEmail, order.ticketNumber, "食券購入", "");
-    toast(`${order.ticketNumber}番を入店待ちにしました`);
+    toast(`${order.ticketNumber}番を購入済みにしました`);
   } catch (e) {
     console.error(e);
     toast("更新に失敗しました。もう一度お試しください", "err");
@@ -409,7 +410,3 @@ export function nextCallTarget(ticketNumber, config, currentNumber) {
   return target > Number(currentNumber || 0) ? target : null;
 }
 
-// 入店の記録。自動呼び出しはここでは行わない。
-export async function markEntered(order, staffEmail) {
-  await setOrderStatus(order, "entered", staffEmail, { enteredAt: serverTimestamp() });
-}

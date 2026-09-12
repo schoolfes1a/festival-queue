@@ -84,7 +84,7 @@ const LOGS = {
   order: {
     collection: "log_order",
     title: "整理券履歴",
-    note: "整理券の発行・食券購入・入店・提供済み・取消など、整理券に関する操作を記録しています。" + RETENTION_NOTE,
+    note: "整理券の発行・食券購入・提供済み・呼び飛ばし・取消など、整理券に関する操作を記録しています。" + RETENTION_NOTE,
     columns: ["日時", "番号", "スタッフ", "操作", "詳細"],
     row: (d) => [fmtTime(d.createdAt), d.ticketNumber != null ? esc(d.ticketNumber) : "-", staffName(d.staffEmail), esc(d.action), `<span class="log-detail">${esc(d.detail)}</span>`],
     csv: (d) => [fmtTime(d.createdAt), d.ticketNumber ?? "", d.staffEmail ? d.staffEmail.split("@")[0] : "", d.action ?? "", d.detail ?? ""],
