@@ -67,7 +67,7 @@ function esc(s) {
 }
 
 // ===== 呼び出し番号・待ち人数 =====
-// 整理券は発行しただけでは注文が入っていないので、
+// 整理券は発行しただけでは食券を買っていないので、
 // 待ち人数は「発行済みの番号 − 呼び出し済みの番号」で数える。
 onSnapshot(doc(db, "state", "ticket"), (snap) => {
   const data = snap.data() || {};
@@ -82,7 +82,7 @@ onSnapshot(doc(db, "state", "ticket"), (snap) => {
 
 // ===== 掲示板 =====
 // 番号だけを載せた公開用のドキュメント。
-// 注文の中身（商品・備考）はお客様の端末には送られない。
+// 購入内容（商品・備考）はお客様の端末には送られない。
 onSnapshot(doc(db, "state", "board"), (snap) => {
   const data = snap.data() || {};
   renderCalling(Array.isArray(data.calling) ? data.calling : []);

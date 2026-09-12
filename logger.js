@@ -1,5 +1,5 @@
 // ログ記録用の共通モジュール。
-// ここでの書き込みが失敗しても、本来の操作（注文確定・ログインなど）を
+// ここでの書き込みが失敗しても、本来の操作（食券の購入・ログインなど）を
 // 止めないよう、必ず try/catch で握りつぶしてコンソールにのみ出す。
 
 import { db } from "./firebase-config.js";
@@ -54,6 +54,6 @@ export async function logOrder(staffEmail, ticketNumber, action, detail) {
       createdAt: serverTimestamp(),
     });
   } catch (e) {
-    console.error("注文履歴の記録に失敗しました", e);
+    console.error("整理券履歴の記録に失敗しました", e);
   }
 }

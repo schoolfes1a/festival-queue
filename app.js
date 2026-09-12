@@ -43,7 +43,7 @@ export const STATUS = {
   cancelled: { label: "キャンセル", cls: "status-cancelled" },
 };
 
-// 旧データ（pending / 注文と同時に発行していた頃）の読み替え
+// 旧データ（pending / 発行と同時に食券を売っていた頃）の読み替え
 export function normalizeStatus(s) {
   if (!s || s === "pending") return "issued";
   return s;
@@ -207,8 +207,8 @@ export function subscribeOrders(handler) {
       snap
     ),
     (err) => {
-      console.error("注文の購読に失敗しました", err);
-      toast("注文データの取得に失敗しました。通信状況を確認してください", "err");
+      console.error("整理券の購読に失敗しました", err);
+      toast("整理券データの取得に失敗しました。通信状況を確認してください", "err");
     }
   );
 }
@@ -257,9 +257,9 @@ export async function saveConfig(patch, staffEmail) {
 }
 
 // ===== お客様画面むけの掲示板 =====
-// お客様の端末に他の方の注文内容（備考など）を配らないよう、
+// お客様の端末に他の方の購入内容（備考など）を配らないよう、
 // 番号だけを別ドキュメントに写して公開する。
-// スタッフ画面が注文を受け取るたびに呼ばれ、内容が変わったときだけ書く。
+// スタッフ画面が整理券を受け取るたびに呼ばれ、内容が変わったときだけ書く。
 let lastBoardJson = null;
 
 export async function syncBoard(orders, currentNumber) {

@@ -15,7 +15,7 @@
     <div class="tabbar" id="log-tabs">
       <button type="button" class="tab-btn active" data-log="login">ログイン履歴</button>
       <button type="button" class="tab-btn" data-log="operation">操作履歴</button>
-      <button type="button" class="tab-btn" data-log="order">注文履歴</button>
+      <button type="button" class="tab-btn" data-log="order">整理券履歴</button>
       <button type="button" class="tab-btn" data-log="access">アクセス履歴</button>
     </div>
 
@@ -83,12 +83,12 @@ const LOGS = {
   },
   order: {
     collection: "log_order",
-    title: "注文履歴",
-    note: "整理券発行・入店・提供済み・キャンセル・編集・削除など、注文に関する操作を記録しています。" + RETENTION_NOTE,
+    title: "整理券履歴",
+    note: "整理券の発行・食券購入・入店・提供済み・取消など、整理券に関する操作を記録しています。" + RETENTION_NOTE,
     columns: ["日時", "番号", "スタッフ", "操作", "詳細"],
     row: (d) => [fmtTime(d.createdAt), d.ticketNumber != null ? esc(d.ticketNumber) : "-", staffName(d.staffEmail), esc(d.action), `<span class="log-detail">${esc(d.detail)}</span>`],
     csv: (d) => [fmtTime(d.createdAt), d.ticketNumber ?? "", d.staffEmail ? d.staffEmail.split("@")[0] : "", d.action ?? "", d.detail ?? ""],
-    file: "注文履歴",
+    file: "整理券履歴",
   },
   access: {
     collection: "log_access",
