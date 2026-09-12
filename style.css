@@ -1110,3 +1110,14 @@ body.guest-page { --bg: #fdf8f2; }
   color: var(--menu-line);
   padding: 20px 0;
 }
+
+.scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+.scrollbar::-webkit-scrollbar {
+    display: none;
+}
+
+
