@@ -10,16 +10,16 @@
 
 <h1 class="site-title">1A文化祭</h1>
 
-<div class="card now-card">
+<!-- 呼び出し中の番号（表示設定でON/OFF） -->
+<div class="card now-card" id="calling-card" hidden>
   <div class="now-label">ただいま呼び出し中の番号</div>
-  <div id="calling-area">
-    <div class="big-number is-empty" id="calling-empty">読み込み中…</div>
-  </div>
+  <div id="calling-area"></div>
   <p class="note" style="margin:14px 0 0;">
     番号が出たら受付までお越しください。食券をご購入いただきます。
   </p>
 </div>
 
+<!-- 呼び飛ばした番号（呼び出し中を出しているときだけ） -->
 <div class="card" id="skipped-card" hidden>
   <div class="now-label">お呼びしましたが、まだお越しでない番号</div>
   <div class="number-chips" id="skipped-list"></div>
@@ -28,15 +28,16 @@
   </p>
 </div>
 
-<div class="card now-card">
+<!-- 待ち人数・待ち時間（それぞれ表示設定でON/OFF） -->
+<div class="card now-card" id="wait-card" hidden>
   <div class="wait-row">
-    <div class="wait-box">
+    <div class="wait-box" id="people-box" hidden>
       <div class="wait-value" id="waiting-count">-<small>人</small></div>
       <div class="wait-label">お待ちの人数</div>
     </div>
-    <div class="wait-box">
-      <div class="wait-value" id="latest-ticket">-<small>番</small></div>
-      <div class="wait-label">最後に発行した整理券</div>
+    <div class="wait-box" id="wait-box" hidden>
+      <div class="wait-value" id="waiting-minutes">-<small>分</small></div>
+      <div class="wait-label">待ち時間の目安</div>
     </div>
   </div>
   <p class="updated-note">この画面は自動で更新されます</p>
@@ -66,36 +67,45 @@ function esc(s) {
   return div.innerHTML;
 }
 
-// ===== 呼び出し番号・待ち人数 =====
-// 整理券は発行しただけでは食券を買っていないので、
-// 待ち人数は「発行済みの番号 − 呼び出し済みの番号」で数える。
-onSnapshot(doc(db, "state", "ticket"), (snap) => {
-  const data = snap.data() || {};
-  const current = Number(data.currentNumber || 0);
-  const latest = Number(data.latestTicket || 0);
-  const waiting = Math.max(0, latest - current);
+// 何を出すかはスタッフが設定タブで決める。
+// すべてOFFならメニューだけのページになる。
+const DEFAULT_DISPLAY = {
+  showTickets: true, showPeople: true, showWait: false, people: 0, waitMinutes: 0,
+};
+let display = { ...DEFAULT_DISPLAY };
+let board = { calling: [], skipped: [] };
 
-  document.getElementById("latest-ticket").innerHTML =
-    latest > 0 ? `${latest}<small>番</small>` : `-<small>番</small>`;
-  document.getElementById("waiting-count").innerHTML = `${waiting}<small>人</small>`;
-});
+onSnapshot(doc(db, "state", "display"), (snap) => {
+  display = { ...DEFAULT_DISPLAY, ...(snap.data() || {}) };
+  render();
+}, (err) => console.error("表示設定の取得に失敗しました", err));
 
-// ===== 掲示板 =====
 // 番号だけを載せた公開用のドキュメント。
 // 購入内容（商品・備考）はお客様の端末には送られない。
 onSnapshot(doc(db, "state", "board"), (snap) => {
   const data = snap.data() || {};
-  renderCalling(Array.isArray(data.calling) ? data.calling : []);
-  renderSkipped(Array.isArray(data.skipped) ? data.skipped : []);
-}, (err) => {
-  console.error("呼び出し状況の取得に失敗しました", err);
-});
+  board = {
+    calling: Array.isArray(data.calling) ? data.calling : [],
+    skipped: Array.isArray(data.skipped) ? data.skipped : [],
+  };
+  render();
+}, (err) => console.error("呼び出し状況の取得に失敗しました", err));
 
-function renderCalling(list) {
+function render() {
+  renderCalling();
+  renderSkipped();
+  renderWait();
+}
+
+function renderCalling() {
+  const card = document.getElementById("calling-card");
+  card.hidden = !display.showTickets;
+  if (!display.showTickets) return;
+
   const area = document.getElementById("calling-area");
   area.innerHTML = "";
 
-  if (list.length === 0) {
+  if (board.calling.length === 0) {
     const el = document.createElement("div");
     el.className = "big-number is-empty";
     el.textContent = "ただいま呼び出し中の番号はありません";
@@ -104,7 +114,7 @@ function renderCalling(list) {
   }
 
   // 直近に呼ばれた番号をいちばん大きく出す
-  const sorted = [...list].sort((a, b) => a - b);
+  const sorted = [...board.calling].sort((a, b) => a - b);
   const main = sorted[sorted.length - 1];
 
   const big = document.createElement("div");
@@ -127,18 +137,29 @@ function renderCalling(list) {
   }
 }
 
-function renderSkipped(list) {
+function renderSkipped() {
   const card = document.getElementById("skipped-card");
-  const wrap = document.getElementById("skipped-list");
-
-  if (list.length === 0) {
+  if (!display.showTickets || board.skipped.length === 0) {
     card.hidden = true;
     return;
   }
-
   card.hidden = false;
-  wrap.innerHTML = [...list].sort((a, b) => a - b)
+  document.getElementById("skipped-list").innerHTML = [...board.skipped].sort((a, b) => a - b)
     .map((n) => `<span class="number-chip is-skipped">${esc(n)}<small>番</small></span>`).join("");
+}
+
+function renderWait() {
+  const people = !!display.showPeople;
+  const wait = !!display.showWait;
+
+  document.getElementById("wait-card").hidden = !(people || wait);
+  document.getElementById("people-box").hidden = !people;
+  document.getElementById("wait-box").hidden = !wait;
+
+  document.getElementById("waiting-count").innerHTML =
+    `${Number(display.people || 0)}<small>人</small>`;
+  document.getElementById("waiting-minutes").innerHTML =
+    `${Number(display.waitMinutes || 0)}<small>分</small>`;
 }
 
 // ===== メニュー =====

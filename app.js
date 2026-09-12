@@ -58,6 +58,18 @@ export function effectiveStatus(order, currentNumber) {
   return s;
 }
 
+// ===== お客様画面の表示設定 =====
+// 何を出すかのON/OFFと、手で入れる数値。
+// 待ち人数と待ち時間は整理券から計算しない。整理券を出さない運用でも
+// 使えるようにするため、スタッフが受付画面で直接いじる。
+export const DEFAULT_DISPLAY = {
+  showTickets: true,   // 呼び出し中の番号と、呼び飛ばした番号
+  showPeople:  true,   // お待ちの人数
+  showWait:    false,  // 待ち時間の目安
+  people:      0,      // 手動で入れる待ち人数
+  waitMinutes: 0,      // 手動で入れる待ち時間（分）
+};
+
 // ===== 既定の設定 =====
 export const DEFAULT_CONFIG = {
   useServed: true,  // 「提供済み」の工程を使うか
@@ -246,6 +258,27 @@ export function subscribeConfig(handler) {
       handler({ ...DEFAULT_CONFIG });
     }
   );
+}
+
+export function subscribeDisplay(handler) {
+  return onSnapshot(
+    doc(db, "state", "display"),
+    (snap) => handler({ ...DEFAULT_DISPLAY, ...(snap.data() || {}) }),
+    (err) => {
+      console.error("表示設定の購読に失敗しました", err);
+      handler({ ...DEFAULT_DISPLAY });
+    }
+  );
+}
+
+export async function saveDisplay(patch, staffEmail, reason) {
+  try {
+    await setDoc(doc(db, "state", "display"), patch, { merge: true });
+    if (reason) logOperation(staffEmail, reason, JSON.stringify(patch));
+  } catch (e) {
+    console.error(e);
+    toast("表示設定の保存に失敗しました", "err");
+  }
 }
 
 export async function saveConfig(patch, staffEmail) {

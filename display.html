@@ -11,7 +11,7 @@
 <div class="display-wrap">
   <header class="display-head">
     <span class="display-title">1A文化祭</span>
-    <span class="display-label">お呼びしている番号</span>
+    <span class="display-label" id="head-label">お呼びしている番号</span>
   </header>
 
   <main class="display-main">
@@ -88,20 +88,77 @@ function renderSkipped(list) {
   });
 }
 
-onSnapshot(doc(db, "state", "board"), (snap) => {
-  const data = snap.data() || {};
-  renderCalling(Array.isArray(data.calling) ? data.calling : []);
-  renderSkipped(Array.isArray(data.skipped) ? data.skipped : []);
+// お客様画面と同じ設定に従う。
+// 整理券を出さない運用なら、番号の代わりに人数と待ち時間を大きく出す。
+const DEFAULT_DISPLAY = {
+  showTickets: true, showPeople: true, showWait: false, people: 0, waitMinutes: 0,
+};
+let display = { ...DEFAULT_DISPLAY };
+let board = { calling: [], skipped: [] };
 
+function touch() {
   const t = new Date();
   const pad = (n) => String(n).padStart(2, "0");
   statusEl.textContent = `${pad(t.getHours())}:${pad(t.getMinutes())}:${pad(t.getSeconds())} 更新`;
   statusEl.classList.remove("is-error");
-}, (err) => {
-  console.error("呼び出し状況の取得に失敗しました", err);
+}
+
+function fail(msg, err) {
+  console.error(msg, err);
   statusEl.textContent = "通信が切れています";
   statusEl.classList.add("is-error");
-});
+}
+
+function render() {
+  if (display.showTickets) {
+    document.getElementById("head-label").textContent = "お呼びしている番号";
+    renderCalling(board.calling);
+    renderSkipped(board.skipped);
+    return;
+  }
+
+  // 番号を出さないときは、人数と待ち時間を並べる
+  document.getElementById("head-label").textContent = "ただいまの状況";
+  renderSkipped([]);
+
+  const items = [];
+  if (display.showPeople) items.push({ value: Number(display.people || 0), unit: "人", label: "お待ちの人数" });
+  if (display.showWait) items.push({ value: Number(display.waitMinutes || 0), unit: "分", label: "待ち時間の目安" });
+
+  numbersEl.innerHTML = "";
+  if (items.length === 0) {
+    const el = document.createElement("div");
+    el.className = "display-empty";
+    el.textContent = "ただいま準備中です";
+    numbersEl.appendChild(el);
+    return;
+  }
+
+  numbersEl.style.setProperty("--num-size", sizeFor(items.length));
+  items.forEach((it) => {
+    const el = document.createElement("div");
+    el.className = "display-stat";
+    el.innerHTML = `<span class="display-num">${it.value}<small>${it.unit}</small></span>` +
+                   `<span class="display-stat-label">${it.label}</span>`;
+    numbersEl.appendChild(el);
+  });
+}
+
+onSnapshot(doc(db, "state", "display"), (snap) => {
+  display = { ...DEFAULT_DISPLAY, ...(snap.data() || {}) };
+  render();
+  touch();
+}, (err) => fail("表示設定の取得に失敗しました", err));
+
+onSnapshot(doc(db, "state", "board"), (snap) => {
+  const data = snap.data() || {};
+  board = {
+    calling: Array.isArray(data.calling) ? data.calling : [],
+    skipped: Array.isArray(data.skipped) ? data.skipped : [],
+  };
+  render();
+  touch();
+}, (err) => fail("呼び出し状況の取得に失敗しました", err));
 
 // ===== 全画面 =====
 document.getElementById("fs-btn").addEventListener("click", async () => {

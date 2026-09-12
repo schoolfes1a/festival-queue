@@ -12,6 +12,41 @@
 
 <main>
 
+  <!-- お客様画面の表示 -->
+  <section class="card">
+    <div class="card-header">
+      <h2>お客様画面に出すもの</h2>
+      <span class="muted" style="font-size:13px;">全端末にすぐ反映されます</span>
+    </div>
+    <p class="note">すべてOFFにすると、お客様画面はメニューだけになります。</p>
+
+    <label class="switch-row">
+      <input type="checkbox" id="dsp-tickets">
+      <span>
+        <strong>整理券の番号</strong>
+        <small>呼び出し中の番号と、呼んでもお越しでない番号を出します。整理券を配らない運用ならOFFにしてください。</small>
+      </span>
+    </label>
+
+    <label class="switch-row">
+      <input type="checkbox" id="dsp-people">
+      <span>
+        <strong>お待ちの人数</strong>
+        <small>受付画面で手入力した人数を出します。整理券の枚数からは計算しません。</small>
+      </span>
+    </label>
+
+    <label class="switch-row">
+      <input type="checkbox" id="dsp-wait">
+      <span>
+        <strong>待ち時間の目安</strong>
+        <small>受付画面で手入力した分数を「○分」として出します。</small>
+      </span>
+    </label>
+
+    <p class="note" id="dsp-preview" style="margin:10px 0 0;"></p>
+  </section>
+
   <!-- 運用設定 -->
   <section class="card">
     <div class="card-header">
@@ -137,8 +172,7 @@
 
 <script type="module">
 import {
-  db, requireStaff, mountShell, subscribeMenu, subscribeTicketState, subscribeOrders,
-  subscribeConfig, saveConfig, updateNavBadges, esc, yen, toast, DEFAULT_CONFIG
+  db, requireStaff, mountShell, subscribeMenu, subscribeTicketState, subscribeOrders, subscribeConfig, saveConfig, updateNavBadges, esc, yen, toast, DEFAULT_CONFIG, subscribeDisplay, saveDisplay, DEFAULT_DISPLAY
 } from "./app.js";
 import {
   collection, doc, addDoc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp
@@ -154,9 +188,18 @@ let latestTicket = 0;
 let currentNumber = 0;
 let editingId = null;
 let config = { ...DEFAULT_CONFIG };
+let dsp = { ...DEFAULT_DISPLAY };
 
 requireStaff((user) => {
   staffEmail = user.email;
+
+  subscribeDisplay((d) => {
+    dsp = d;
+    document.getElementById("dsp-tickets").checked = !!d.showTickets;
+    document.getElementById("dsp-people").checked = !!d.showPeople;
+    document.getElementById("dsp-wait").checked = !!d.showWait;
+    updateDisplayPreview();
+  });
 
   subscribeConfig((c) => {
     config = c;
@@ -185,6 +228,25 @@ requireStaff((user) => {
     updateNavBadges(orders, currentNumber);
   });
 });
+
+// ===== お客様画面に出すもの =====
+function updateDisplayPreview() {
+  const on = [];
+  if (document.getElementById("dsp-tickets").checked) on.push("整理券の番号");
+  if (document.getElementById("dsp-people").checked) on.push("お待ちの人数");
+  if (document.getElementById("dsp-wait").checked) on.push("待ち時間の目安");
+  document.getElementById("dsp-preview").textContent = on.length === 0
+    ? "いまはメニューだけが表示されます。"
+    : `いまは ${on.join("・")} とメニューが表示されます。`;
+}
+
+[["dsp-tickets", "showTickets"], ["dsp-people", "showPeople"], ["dsp-wait", "showWait"]]
+  .forEach(([id, key]) => {
+    document.getElementById(id).addEventListener("change", (e) => {
+      saveDisplay({ [key]: e.target.checked }, staffEmail, "お客様画面の表示を変更");
+      updateDisplayPreview();
+    });
+  });
 
 // ===== 運用設定 =====
 function updatePreview() {

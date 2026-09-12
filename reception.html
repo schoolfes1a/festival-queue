@@ -61,6 +61,42 @@
         </div>
       </section>
 
+      <section class="card" id="display-card" hidden>
+        <div class="card-header">
+          <h2>お客様画面の表示</h2>
+        </div>
+
+        <div id="people-row" hidden>
+          <label>お待ちの人数</label>
+          <div class="counter-row">
+            <button class="gray" data-people="-1">－1</button>
+            <span class="counter-value" id="people-value">0</span>
+            <button class="green" data-people="1">＋1</button>
+          </div>
+          <div class="inline-form" style="margin-top:6px;">
+            <input type="number" id="people-input" placeholder="人数を直接指定" inputmode="numeric">
+            <button id="people-set" class="ghost small">設定</button>
+          </div>
+        </div>
+
+        <div id="wait-row" hidden style="margin-top:14px;">
+          <label>待ち時間の目安（分）</label>
+          <div class="counter-row">
+            <button class="gray" data-wait="-5">－5</button>
+            <span class="counter-value" id="wait-value">0</span>
+            <button class="green" data-wait="5">＋5</button>
+          </div>
+          <div class="inline-form" style="margin-top:6px;">
+            <input type="number" id="wait-input" placeholder="分を直接指定" inputmode="numeric">
+            <button id="wait-set" class="ghost small">設定</button>
+          </div>
+        </div>
+
+        <p class="note" style="margin:12px 0 0;">
+          表示するかどうかは<a href="settings.html">設定</a>タブで切り替えます。
+        </p>
+      </section>
+
       <section class="card">
         <div class="card-header">
           <h2>いまの状況</h2>
@@ -149,7 +185,7 @@
 
 <script type="module">
 import {
-  db, requireStaff, mountShell, subscribeOrders, subscribeTicketState, subscribeConfig, syncBoard, setOrderStatus, setCurrentNumber, updateNavBadges, esc, fmtClock, toast, effectiveStatus, isToday, DEFAULT_CONFIG, purchaseAndAdvance
+  db, requireStaff, mountShell, subscribeOrders, subscribeTicketState, subscribeConfig, syncBoard, setOrderStatus, setCurrentNumber, updateNavBadges, esc, fmtClock, toast, effectiveStatus, isToday, DEFAULT_CONFIG, purchaseAndAdvance, subscribeDisplay, saveDisplay, DEFAULT_DISPLAY
 } from "./app.js";
 import {
   doc, setDoc, runTransaction, serverTimestamp
@@ -163,6 +199,7 @@ let staffEmail = null;
 let currentNumber = 0;
 let latestTicket = 0;
 let config = { ...DEFAULT_CONFIG };
+let dsp = { ...DEFAULT_DISPLAY };
 let issuing = false;
 
 
@@ -176,6 +213,11 @@ requireStaff((user) => {
       : "自動呼び出しは無効です。番号は手動で進めてください。";
     applyMode();
     render();
+  });
+
+  subscribeDisplay((d) => {
+    dsp = d;
+    renderDisplayCard();
   });
 
   subscribeTicketState((state) => {
@@ -226,6 +268,48 @@ function renderStats() {
 
   updateNavBadges(orders, currentNumber);
 }
+
+// ===== お客様画面の表示（人数・待ち時間） =====
+// 整理券を出さない運用でも使えるよう、整理券からは計算せず手で入れる。
+function renderDisplayCard() {
+  const people = !!dsp.showPeople;
+  const wait = !!dsp.showWait;
+  document.getElementById("display-card").hidden = !(people || wait);
+  document.getElementById("people-row").hidden = !people;
+  document.getElementById("wait-row").hidden = !wait;
+  document.getElementById("people-value").textContent = Number(dsp.people || 0);
+  document.getElementById("wait-value").textContent = Number(dsp.waitMinutes || 0);
+}
+
+document.querySelectorAll("[data-people]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const next = Math.max(0, Number(dsp.people || 0) + Number(btn.dataset.people));
+    saveDisplay({ people: next }, staffEmail, "お待ちの人数を変更");
+  });
+});
+
+document.querySelectorAll("[data-wait]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const next = Math.max(0, Number(dsp.waitMinutes || 0) + Number(btn.dataset.wait));
+    saveDisplay({ waitMinutes: next }, staffEmail, "待ち時間の目安を変更");
+  });
+});
+
+document.getElementById("people-set").addEventListener("click", () => {
+  const input = document.getElementById("people-input");
+  const v = Number(input.value);
+  if (!Number.isInteger(v) || v < 0) { toast("0以上の数字を入力してください", "err"); return; }
+  saveDisplay({ people: v }, staffEmail, "お待ちの人数を変更");
+  input.value = "";
+});
+
+document.getElementById("wait-set").addEventListener("click", () => {
+  const input = document.getElementById("wait-input");
+  const v = Number(input.value);
+  if (!Number.isInteger(v) || v < 0) { toast("0以上の数字を入力してください", "err"); return; }
+  saveDisplay({ waitMinutes: v }, staffEmail, "待ち時間の目安を変更");
+  input.value = "";
+});
 
 // ===== 呼び出し番号 =====
 document.getElementById("call-next-btn").addEventListener("click", () => {

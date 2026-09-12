@@ -186,6 +186,22 @@ label { font-size: 14px; font-weight: 600; display: block; margin-bottom: 4px; }
 
 .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
 
+/* 人数・待ち時間のように、数を増減させる操作 */
+.counter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.counter-row button { flex: 1 1 0; }
+.counter-value {
+  flex: 1 1 0;
+  text-align: center;
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
 /* まとめて呼ぶ：一度に複数の番号を呼び出し中にする操作 */
 .bulk-call {
   display: flex;
@@ -838,6 +854,20 @@ body.display-page {
   color: #ff5b4a;
   font-variant-numeric: tabular-nums;
   text-shadow: 0 0 3vh rgba(255, 91, 74, 0.35);
+}
+
+/* 番号の代わりに人数・待ち時間を出すとき */
+.display-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5vh;
+}
+.display-num small { font-size: 0.4em; margin-left: 0.08em; }
+.display-stat-label {
+  font-size: clamp(13px, 2.4vh, 28px);
+  font-weight: 700;
+  color: #7d8899;
 }
 
 .display-empty {
