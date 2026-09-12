@@ -201,8 +201,15 @@ onSnapshot(query(collection(db, "menu"), orderBy("name")), (snap) => {
     return;
   }
 
-  snap.docs.forEach((d) => {
-    const item = d.data();
+  // 並び順はスタッフが設定タブで決める。order を持たない品は名前順で後ろへ。
+  const items = snap.docs.map((d) => d.data()).sort((a, b) => {
+    const ao = Number.isFinite(a.order) ? a.order : Infinity;
+    const bo = Number.isFinite(b.order) ? b.order : Infinity;
+    if (ao !== bo) return ao - bo;
+    return String(a.name || "").localeCompare(String(b.name || ""), "ja");
+  });
+
+  items.forEach((item) => {
     const sold = !!item.soldOut;
     const li = document.createElement("li");
     li.className = "menu-item" + (sold ? " is-sold-out" : "");

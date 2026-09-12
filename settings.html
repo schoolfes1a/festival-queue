@@ -310,7 +310,7 @@ function renderMenu() {
     return;
   }
 
-  menuItems.forEach((item) => {
+  menuItems.forEach((item, i) => {
     const li = document.createElement("li");
     const sold = !!item.soldOut;
     li.innerHTML = `
@@ -321,6 +321,8 @@ function renderMenu() {
         ${item.allergens ? `<br><small class="muted">アレルギー: ${esc(item.allergens)}</small>` : ""}
       </span>
       <span class="btn-row">
+        <button class="ghost small move-btn" data-move="${i}" data-dir="-1" ${i === 0 ? "disabled" : ""} title="上へ">▲</button>
+        <button class="ghost small move-btn" data-move="${i}" data-dir="1" ${i === menuItems.length - 1 ? "disabled" : ""} title="下へ">▼</button>
         <button class="${sold ? "green" : "ghost"} small" data-sold="${item.id}">${sold ? "販売を再開" : "売り切れ"}</button>
         <button class="ghost small" data-edit="${item.id}">編集</button>
         <button class="red small" data-delete="${item.id}">削除</button>
@@ -330,6 +332,9 @@ function renderMenu() {
   });
 
   const find = (id) => menuItems.find((m) => m.id === id);
+
+  list.querySelectorAll("[data-move]").forEach((btn) =>
+    btn.addEventListener("click", () => moveItem(Number(btn.dataset.move), Number(btn.dataset.dir))));
 
   list.querySelectorAll("[data-sold]").forEach((btn) =>
     btn.addEventListener("click", () => toggleSoldOut(find(btn.dataset.sold))));
@@ -370,7 +375,9 @@ document.getElementById("add-btn").addEventListener("click", async () => {
 
   try {
     await addDoc(collection(db, "menu"), {
-      name, price, description, allergens, soldOut: false, createdAt: serverTimestamp(),
+      name, price, description, allergens, soldOut: false,
+      order: menuItems.length,   // 新しい品は一番下に置く
+      createdAt: serverTimestamp(),
     });
     logOperation(staffEmail, "メニュー追加", `${name}（¥${price}）`);
     toast(`「${name}」を追加しました`);
@@ -381,6 +388,35 @@ document.getElementById("add-btn").addEventListener("click", async () => {
     toast("追加に失敗しました", "err");
   }
 });
+
+// 並べ替え。押すたびに全件へ 0 から連番を振り直す。
+// order を持っていなかった品にも番号が付き、番号の重複や飛びも直る。
+let moving = false;
+
+async function moveItem(index, dir) {
+  if (moving) return;
+  const to = index + dir;
+  if (to < 0 || to >= menuItems.length) return;
+
+  moving = true;
+  document.querySelectorAll("[data-move]").forEach((b) => { b.disabled = true; });
+
+  const next = [...menuItems];
+  [next[index], next[to]] = [next[to], next[index]];
+
+  try {
+    const batch = writeBatch(db);
+    next.forEach((it, i) => batch.update(doc(db, "menu", it.id), { order: i }));
+    await batch.commit();
+    logOperation(staffEmail, "メニューの並び替え", `${next[to].name} を${dir < 0 ? "下" : "上"}へ`);
+  } catch (e) {
+    console.error(e);
+    toast("並び替えに失敗しました", "err");
+    renderMenu();
+  } finally {
+    moving = false;
+  }
+}
 
 // 売り切れは当日よく切り替えるので、一覧から1タップで変える。
 // 品は消さずに残し、お客様画面では売り切れと分かるように出す。

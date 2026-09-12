@@ -230,9 +230,23 @@ export function subscribeOrders(handler) {
 export function subscribeMenu(handler) {
   return onSnapshot(
     query(collection(db, "menu"), orderBy("name")),
-    (snap) => handler(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+    (snap) => handler(sortMenu(snap.docs.map((d) => ({ id: d.id, ...d.data() })))),
     (err) => console.error("メニューの購読に失敗しました", err)
   );
+}
+
+// メニューの並び順。order の小さい順に出す。
+//
+// Firestore 側で orderBy("order") にはしない。order を持たない品が
+// 結果から丸ごと落ちてしまい、既存のメニューが消えるため。
+// 取ってきてから並べ替え、order が無い品は名前順で後ろに回す。
+export function sortMenu(items) {
+  return [...items].sort((a, b) => {
+    const ao = Number.isFinite(a.order) ? a.order : Infinity;
+    const bo = Number.isFinite(b.order) ? b.order : Infinity;
+    if (ao !== bo) return ao - bo;
+    return String(a.name || "").localeCompare(String(b.name || ""), "ja");
+  });
 }
 
 export function subscribeTicketState(handler) {

@@ -1082,6 +1082,16 @@ body.guest-page { --bg: #fdf8f2; }
   white-space: pre-wrap;
 }
 
+/* 並べ替えの上下ボタン。幅を揃えて押しやすくする */
+.move-btn {
+  min-width: 38px;
+  padding-left: 8px;
+  padding-right: 8px;
+  font-size: 12px;
+  line-height: 1;
+}
+.move-btn:disabled { opacity: 0.3; }
+
 /* スタッフ画面の一覧に付ける売り切れの印 */
 .sold-out-tag {
   display: inline-block;
