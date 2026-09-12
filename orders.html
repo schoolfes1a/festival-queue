@@ -35,21 +35,12 @@
 
 </main>
 
-<!-- 内容の修正 -->
+<!-- 備考の編集 -->
 <div class="modal" id="edit-modal" hidden>
   <div class="modal-box">
-    <h2 id="edit-title">内容を修正</h2>
-    <div id="edit-items"></div>
-    <div class="inline-form" style="margin-top:10px;">
-      <select id="edit-add-select"></select>
-      <button type="button" id="edit-add-btn" class="green small">追加</button>
-    </div>
-    <div class="cart-total">
-      <span>合計</span>
-      <b id="edit-total">¥0</b>
-    </div>
-    <label for="edit-note" style="margin-top:8px;">備考</label>
-    <textarea id="edit-note" rows="2"></textarea>
+    <h2 id="edit-title">備考を編集</h2>
+    <label for="edit-note">備考</label>
+    <textarea id="edit-note" rows="3" placeholder="アレルギー、まとめ会計など"></textarea>
     <div class="btn-row" style="margin-top:14px;">
       <button type="button" id="edit-save" class="green" style="flex:1;">保存</button>
       <button type="button" id="edit-cancel" class="ghost" style="flex:1;">閉じる</button>
@@ -59,10 +50,7 @@
 
 <script type="module">
 import {
-  db, requireStaff, mountShell, subscribeOrders, subscribeMenu, subscribeTicketState,
-  subscribeConfig, syncBoard, updateNavBadges, setOrderStatus, removeOrder, enterAndAdvance,
-  esc, yen, calcTotal, itemsHtml, statusLabel, fmtClock, toast, beep,
-  createArrivalWatcher, formatItems, effectiveStatus, DEFAULT_CONFIG
+  db, requireStaff, mountShell, subscribeOrders, subscribeTicketState, subscribeConfig, syncBoard, updateNavBadges, setOrderStatus, removeOrder, enterAndAdvance, esc, statusLabel, fmtClock, toast, beep, createArrivalWatcher, effectiveStatus, DEFAULT_CONFIG
 } from "./app.js";
 import {
   doc, updateDoc, serverTimestamp
@@ -72,7 +60,6 @@ import { logOrder } from "./logger.js";
 mountShell({ active: "orders", title: "提供リスト" });
 
 let orders = [];
-let menuItems = [];
 let staffEmail = null;
 let currentNumber = 0;
 let config = { ...DEFAULT_CONFIG };
@@ -110,11 +97,6 @@ requireStaff((user) => {
   subscribeTicketState((s) => {
     currentNumber = s.currentNumber;
     renderBoard();
-  });
-
-  subscribeMenu((items) => {
-    menuItems = items;
-    renderEditSelect();
   });
 
   subscribeOrders((list, snap) => {
@@ -176,7 +158,7 @@ function visibleOrders() {
 }
 
 function actionsFor(order, eff) {
-  const edit = `<button class="ghost small" data-edit="${order.id}">修正</button>`;
+  const edit = `<button class="ghost small" data-edit="${order.id}">備考</button>`;
   const del  = `<button class="red small" data-delete="${order.id}">削除</button>`;
 
   if (eff === "purchased") {
@@ -219,9 +201,7 @@ function renderBoard() {
         <div class="order-num">${esc(order.ticketNumber)}<small>番</small></div>
         <div class="order-meta">${statusLabel(eff)}<br>${fmtClock(order.purchasedAt || order.createdAt)}</div>
       </div>
-      <div class="order-items">${itemsHtml(order.items)}</div>
       ${order.note ? `<div class="order-note">${esc(order.note)}</div>` : ""}
-      <div class="order-total">${yen(calcTotal(order.items))}</div>
       <div class="order-actions">${actionsFor(order, eff)}</div>
     `;
     board.appendChild(card);
@@ -265,89 +245,24 @@ function attachBoardEvents(board) {
   });
 }
 
-// ===== 修正モーダル =====
-function renderEditSelect() {
-  const select = document.getElementById("edit-add-select");
-  select.innerHTML = "";
-  menuItems.forEach((m) => {
-    const opt = document.createElement("option");
-    opt.value = m.id;
-    opt.textContent = `${m.name}（${yen(m.price)}）`;
-    select.appendChild(opt);
-  });
-}
-
+// ===== 備考モーダル =====
+// 商品は扱わないので、あとから足せるのは備考だけ。
 function openEdit(order) {
   if (!order) return;
-  editing = {
-    id: order.id,
-    ticketNumber: order.ticketNumber,
-    items: (order.items || []).map((i) => ({ ...i })),
-  };
-  document.getElementById("edit-title").textContent = `${order.ticketNumber}番の内容を修正`;
+  editing = { id: order.id, ticketNumber: order.ticketNumber };
+  document.getElementById("edit-title").textContent = `${order.ticketNumber}番の備考`;
   document.getElementById("edit-note").value = order.note || "";
   document.getElementById("edit-modal").hidden = false;
-  renderEditItems();
 }
-
-function renderEditItems() {
-  const wrap = document.getElementById("edit-items");
-  wrap.innerHTML = "";
-
-  if (editing.items.length === 0) {
-    wrap.innerHTML = `<p class="empty">商品がありません</p>`;
-  } else {
-    editing.items.forEach((item, idx) => {
-      const row = document.createElement("div");
-      row.className = "cart-row";
-      row.innerHTML = `
-        <span>${esc(item.name)}<br><small class="muted">${yen(item.price)} × ${item.qty} = ${yen(item.price * item.qty)}</small></span>
-        <span class="qty-ctrl">
-          <button type="button" class="gray" data-m="${idx}">−</button>
-          <span class="cart-qty">${item.qty}</span>
-          <button type="button" class="gray" data-p="${idx}">＋</button>
-        </span>
-      `;
-      wrap.appendChild(row);
-    });
-    wrap.querySelectorAll("[data-p]").forEach((b) =>
-      b.addEventListener("click", () => { editing.items[Number(b.dataset.p)].qty += 1; renderEditItems(); }));
-    wrap.querySelectorAll("[data-m]").forEach((b) =>
-      b.addEventListener("click", () => {
-        const i = Number(b.dataset.m);
-        editing.items[i].qty -= 1;
-        if (editing.items[i].qty <= 0) editing.items.splice(i, 1);
-        renderEditItems();
-      }));
-  }
-
-  document.getElementById("edit-total").textContent = yen(calcTotal(editing.items));
-}
-
-document.getElementById("edit-add-btn").addEventListener("click", () => {
-  const item = menuItems.find((m) => m.id === document.getElementById("edit-add-select").value);
-  if (!item) return;
-  const ex = editing.items.find((i) => i.itemId === item.id);
-  if (ex) ex.qty += 1;
-  else editing.items.push({ itemId: item.id, name: item.name, price: Number(item.price), qty: 1 });
-  renderEditItems();
-});
 
 document.getElementById("edit-save").addEventListener("click", async () => {
   const note = document.getElementById("edit-note").value.trim();
   const btn = document.getElementById("edit-save");
   btn.disabled = true;
   try {
-    await updateDoc(doc(db, "orders", editing.id), {
-      items: editing.items,
-      note,
-      updatedAt: serverTimestamp(),
-    });
-    logOrder(
-      staffEmail, editing.ticketNumber, "内容修正",
-      formatItems(editing.items) + (note ? ` / 備考:${note}` : "")
-    );
-    toast(`${editing.ticketNumber}番の内容を更新しました`);
+    await updateDoc(doc(db, "orders", editing.id), { note, updatedAt: serverTimestamp() });
+    logOrder(staffEmail, editing.ticketNumber, "備考の編集", note);
+    toast(`${editing.ticketNumber}番の備考を更新しました`);
     closeEdit();
   } catch (e) {
     console.error(e);

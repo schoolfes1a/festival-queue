@@ -26,7 +26,7 @@ export { auth, db };
 export const NAV = [
   { id: "reception", href: "reception.html", label: "受付",       badge: "called" },
   { id: "orders",    href: "orders.html",    label: "提供リスト", badge: "waiting" },
-  { id: "sales",     href: "sales.html",     label: "売上" },
+  { id: "sales",     href: "sales.html",     label: "集計" },
   { id: "settings",  href: "settings.html",  label: "設定" },
   { id: "logs",      href: "logs.html",      label: "ログ" },
 ];

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>売上 - 1A文化祭</title>
+<title>集計 - 1A文化祭</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body class="staff-page narrow">
@@ -14,7 +14,7 @@
 
   <section class="card">
     <div class="card-header">
-      <h2>売上</h2>
+      <h2>集計</h2>
       <div class="tabbar" style="margin:0;">
         <button type="button" class="tab-btn active" data-range="today">本日</button>
         <button type="button" class="tab-btn" data-range="all">全期間</button>
@@ -24,48 +24,74 @@
 
     <div class="stat-row">
       <div class="stat">
-        <div class="stat-value" id="total-sales">¥0</div>
-        <div class="stat-label">売上合計</div>
+        <div class="stat-value" id="c-issued">0</div>
+        <div class="stat-label">発行した整理券</div>
       </div>
       <div class="stat">
-        <div class="stat-value" id="total-orders">0</div>
-        <div class="stat-label">食券を買った組数</div>
+        <div class="stat-value status-purchased" id="c-bought">0</div>
+        <div class="stat-label">食券を買った組</div>
       </div>
       <div class="stat">
-        <div class="stat-value" id="total-items">0</div>
-        <div class="stat-label">売れた個数</div>
+        <div class="stat-value status-entered" id="c-entered">0</div>
+        <div class="stat-label">入店した組</div>
+      </div>
+    </div>
+
+    <div class="stat-row" style="margin-top:10px;">
+      <div class="stat" id="served-stat">
+        <div class="stat-value status-served" id="c-served">0</div>
+        <div class="stat-label">提供した組</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value status-skipped" id="c-skipped">0</div>
+        <div class="stat-label">呼び飛ばし</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value status-cancelled" id="c-cancelled">0</div>
+        <div class="stat-label">取消</div>
       </div>
     </div>
   </section>
 
   <section class="card">
     <div class="card-header">
-      <h2>商品別の内訳</h2>
+      <h2>工程ごとの通過数</h2>
       <button id="csv-btn" class="green small">CSVダウンロード</button>
     </div>
-    <div id="breakdown"></div>
+    <p class="note">発行した整理券のうち、どこまで進んだかの内訳です。</p>
+    <div id="funnel"></div>
+  </section>
+
+  <section class="card">
+    <div class="card-header">
+      <h2>時間帯ごとの食券</h2>
+    </div>
+    <p class="note">食券を買った時刻でまとめています。混んだ時間帯の目安になります。</p>
+    <div id="hourly"></div>
   </section>
 
 </main>
 
 <script type="module">
 import {
-  requireStaff, mountShell, subscribeOrders, subscribeTicketState,
-  updateNavBadges, esc, yen, calcTotal, isToday, toast
+  requireStaff, mountShell, subscribeOrders, subscribeTicketState, subscribeConfig,
+  updateNavBadges, esc, isToday, toast, DEFAULT_CONFIG
 } from "./app.js";
 
-mountShell({ active: "sales", title: "売上" });
+mountShell({ active: "sales", title: "集計" });
 
 let orders = [];
 let currentNumber = 0;
+let config = { ...DEFAULT_CONFIG };
 let range = "today";
 
 const RANGE_NOTE = {
-  today: "本日、食券を購入した分を集計しています（取り消した整理券は除きます）。",
-  all:   "これまでに食券を購入した分をすべて集計しています（取り消した整理券は除きます）。",
+  today: "本日発行した整理券を集計しています。",
+  all:   "これまでに発行した整理券をすべて集計しています。",
 };
 
 requireStaff(() => {
+  subscribeConfig((c) => { config = c; render(); });
   subscribeTicketState((s) => { currentNumber = s.currentNumber; });
   subscribeOrders((list) => {
     orders = list;
@@ -82,62 +108,109 @@ document.querySelectorAll("[data-range]").forEach((btn) => {
   });
 });
 
-// 集計対象：食券を購入済み（items が入っている）かつ 取り消していない整理券
+// 本日かどうかは整理券を発行した時刻で判断する
 function targetOrders() {
-  return orders.filter((o) => {
-    if (o.status === "cancelled") return false;
-    if (!o.items || o.items.length === 0) return false;
-    if (range === "all") return true;
-    // purchasedAt が無い古いデータは createdAt で代用する
-    return isToday(o.purchasedAt || o.createdAt);
-  });
+  if (range === "all") return orders;
+  return orders.filter((o) => isToday(o.createdAt));
 }
 
-function aggregate(list) {
-  const map = new Map();
-  list.forEach((o) => {
-    (o.items || []).forEach((i) => {
-      const key = i.name;
-      const cur = map.get(key) || { name: key, price: Number(i.price || 0), qty: 0, amount: 0 };
-      cur.qty += Number(i.qty || 0);
-      cur.amount += Number(i.price || 0) * Number(i.qty || 0);
-      map.set(key, cur);
-    });
-  });
-  return [...map.values()].sort((a, b) => b.qty - a.qty);
+// 工程は後戻りしない前提で数える。
+// 入店済みの整理券は食券も買っているので、購入の数にも含める。
+function counts(list) {
+  const is = (o, ...st) => st.includes(o.status);
+  return {
+    issued:    list.length,
+    bought:    list.filter((o) => is(o, "purchased", "entered", "served")).length,
+    entered:   list.filter((o) => is(o, "entered", "served")).length,
+    served:    list.filter((o) => is(o, "served")).length,
+    skipped:   list.filter((o) => is(o, "skipped")).length,
+    cancelled: list.filter((o) => is(o, "cancelled")).length,
+  };
 }
 
 function render() {
   const list = targetOrders();
-  const rows = aggregate(list);
+  const c = counts(list);
 
   document.getElementById("range-note").textContent = RANGE_NOTE[range];
-  const total = list.reduce((s, o) => s + calcTotal(o.items), 0);
-  const itemCount = rows.reduce((s, r) => s + r.qty, 0);
+  document.getElementById("c-issued").textContent = c.issued;
+  document.getElementById("c-bought").textContent = c.bought;
+  document.getElementById("c-entered").textContent = c.entered;
+  document.getElementById("c-served").textContent = c.served;
+  document.getElementById("c-skipped").textContent = c.skipped;
+  document.getElementById("c-cancelled").textContent = c.cancelled;
+  document.getElementById("served-stat").hidden = !config.useServed;
 
-  document.getElementById("total-sales").textContent = yen(total);
-  document.getElementById("total-orders").textContent = list.length;
-  document.getElementById("total-items").textContent = itemCount;
+  renderFunnel(c);
+  renderHourly(list);
+}
 
-  const wrap = document.getElementById("breakdown");
+function renderFunnel(c) {
+  const rows = [
+    { name: "整理券を発行", n: c.issued },
+    { name: "食券を購入",   n: c.bought },
+    { name: "入店",         n: c.entered },
+  ];
+  if (config.useServed) rows.push({ name: "提供", n: c.served });
+
+  const wrap = document.getElementById("funnel");
   wrap.innerHTML = "";
 
-  if (rows.length === 0) {
-    wrap.innerHTML = `<p class="empty">まだ売れていません</p>`;
+  if (c.issued === 0) {
+    wrap.innerHTML = `<p class="empty">まだ整理券がありません</p>`;
     return;
   }
 
-  const max = Math.max(...rows.map((r) => r.qty));
   rows.forEach((r) => {
+    const pct = Math.round((r.n / c.issued) * 100);
     const el = document.createElement("div");
     el.className = "sales-row";
     el.innerHTML = `
       <div class="sales-head">
         <span class="sales-name">${esc(r.name)}</span>
-        <span class="sales-qty">${r.qty}<small>個</small></span>
+        <span class="sales-qty">${r.n}<small>組</small></span>
       </div>
-      <div class="sales-bar"><span style="width:${Math.round((r.qty / max) * 100)}%"></span></div>
-      <div class="sales-sub">${yen(r.price)} × ${r.qty} = <strong>${yen(r.amount)}</strong></div>
+      <div class="sales-bar"><span style="width:${pct}%"></span></div>
+      <div class="sales-sub">発行した ${c.issued} 組のうち <strong>${pct}%</strong></div>
+    `;
+    wrap.appendChild(el);
+  });
+}
+
+function hourOf(ts) {
+  return ts && ts.toDate ? ts.toDate().getHours() : null;
+}
+
+function renderHourly(list) {
+  const wrap = document.getElementById("hourly");
+  wrap.innerHTML = "";
+
+  const map = new Map();
+  list.forEach((o) => {
+    if (o.status === "cancelled") return;
+    const h = hourOf(o.purchasedAt);
+    if (h === null) return;
+    map.set(h, (map.get(h) || 0) + 1);
+  });
+
+  if (map.size === 0) {
+    wrap.innerHTML = `<p class="empty">まだ食券が売れていません</p>`;
+    return;
+  }
+
+  const hours = [...map.keys()].sort((a, b) => a - b);
+  const max = Math.max(...map.values());
+
+  hours.forEach((h) => {
+    const n = map.get(h);
+    const el = document.createElement("div");
+    el.className = "sales-row";
+    el.innerHTML = `
+      <div class="sales-head">
+        <span class="sales-name">${h}時台</span>
+        <span class="sales-qty">${n}<small>組</small></span>
+      </div>
+      <div class="sales-bar"><span style="width:${Math.round((n / max) * 100)}%"></span></div>
     `;
     wrap.appendChild(el);
   });
@@ -150,18 +223,26 @@ function csvCell(v) {
 }
 
 document.getElementById("csv-btn").addEventListener("click", () => {
-  const rows = aggregate(targetOrders());
-  if (rows.length === 0) { toast("出力できる売上がありません", "err"); return; }
+  const list = targetOrders();
+  if (list.length === 0) { toast("出力できる整理券がありません", "err"); return; }
 
-  const lines = [["商品名", "単価", "個数", "金額"].map(csvCell).join(",")];
-  rows.forEach((r) => lines.push([r.name, r.price, r.qty, r.amount].map(csvCell).join(",")));
-  lines.push(["合計", "", rows.reduce((s, r) => s + r.qty, 0), rows.reduce((s, r) => s + r.amount, 0)].map(csvCell).join(","));
+  const c = counts(list);
+  const rows = [
+    ["整理券を発行", c.issued],
+    ["食券を購入", c.bought],
+    ["入店", c.entered],
+  ];
+  if (config.useServed) rows.push(["提供", c.served]);
+  rows.push(["呼び飛ばし", c.skipped], ["取消", c.cancelled]);
+
+  const lines = [["工程", "組数"].map(csvCell).join(",")];
+  rows.forEach((r) => lines.push(r.map(csvCell).join(",")));
 
   // Excelで文字化けしないようUTF-8 BOMを付ける
   const csv = "﻿" + lines.join("\r\n");
   const d = new Date();
   const pad = (n) => String(n).padStart(2, "0");
-  const name = `売上_${range === "today" ? "本日" : "全期間"}_${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}.csv`;
+  const name = `集計_${range === "today" ? "本日" : "全期間"}_${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}.csv`;
 
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));

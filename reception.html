@@ -76,12 +76,12 @@
             <div class="stat-label">呼び飛ばし</div>
           </div>
           <div class="stat">
-            <div class="stat-value" id="stat-sales">¥0</div>
-            <div class="stat-label">本日の売上</div>
+            <div class="stat-value status-served" id="stat-sold">0</div>
+            <div class="stat-label">本日の食券</div>
           </div>
         </div>
         <p class="note" style="margin:12px 0 0;">
-          内訳は<a href="sales.html">売上</a>タブで見られます。
+          詳しい内訳は<a href="sales.html">集計</a>タブで見られます。
         </p>
       </section>
     </div>
@@ -94,7 +94,7 @@
           <span class="muted" style="font-size:13px;">番号を呼んだ順</span>
         </div>
         <p class="note">
-          お客様が来たら「食券を買う」を押して商品を選びます。来なければ「呼び飛ばし」に送ると、
+          お客様が来たら「食券を買った」を押すと入店待ちに移ります。来なければ「呼び飛ばし」に送ると、
           お客様画面に番号が出て後から戻ってこられます。
         </p>
         <div class="board" id="called-board"></div>
@@ -146,31 +146,9 @@
   </div>
 </div>
 
-<!-- 食券購入 -->
-<div class="modal" id="buy-modal" hidden>
-  <div class="modal-box" style="max-width:560px;">
-    <h2 id="buy-title">食券の購入</h2>
-    <div class="menu-grid" id="buy-menu"></div>
-    <h2 style="margin-top:14px;">カート</h2>
-    <div id="buy-cart"></div>
-    <div class="cart-total">
-      <span>合計</span>
-      <b id="buy-total">¥0</b>
-    </div>
-    <label for="buy-note" style="margin-top:8px;">備考（任意）</label>
-    <textarea id="buy-note" rows="2" placeholder="アレルギー、まとめ会計など"></textarea>
-    <div class="btn-row" style="margin-top:14px;">
-      <button id="buy-confirm" class="green big" style="flex:2;">購入を確定して入店待ちへ</button>
-      <button id="buy-cancel" class="ghost" style="flex:1;">閉じる</button>
-    </div>
-  </div>
-</div>
-
 <script type="module">
 import {
-  db, requireStaff, mountShell, subscribeOrders, subscribeMenu, subscribeTicketState,
-  subscribeConfig, syncBoard, setOrderStatus, setCurrentNumber, updateNavBadges, enterAndAdvance,
-  esc, yen, calcTotal, itemsHtml, fmtClock, toast, effectiveStatus, isToday, DEFAULT_CONFIG
+  db, requireStaff, mountShell, subscribeOrders, subscribeTicketState, subscribeConfig, syncBoard, setOrderStatus, setCurrentNumber, updateNavBadges, enterAndAdvance, esc, fmtClock, toast, effectiveStatus, isToday, DEFAULT_CONFIG
 } from "./app.js";
 import {
   doc, setDoc, runTransaction, serverTimestamp
@@ -179,7 +157,6 @@ import { logOrder } from "./logger.js";
 
 mountShell({ active: "reception", title: "受付" });
 
-let menuItems = [];
 let orders = [];
 let staffEmail = null;
 let currentNumber = 0;
@@ -187,7 +164,6 @@ let latestTicket = 0;
 let config = { ...DEFAULT_CONFIG };
 let issuing = false;
 
-let buying = null;   // { id, ticketNumber, cart: [] }
 
 requireStaff((user) => {
   staffEmail = user.email;
@@ -211,15 +187,9 @@ requireStaff((user) => {
     render();
   });
 
-  subscribeMenu((items) => {
-    menuItems = items;
-    if (buying) renderBuyMenu();
-  });
-
   subscribeOrders((list) => {
     orders = list;
     render();
-    if (buying && !orders.some((o) => o.id === buying.id)) closeBuy();
   });
 });
 
@@ -250,10 +220,8 @@ function renderStats() {
   document.getElementById("stat-entered").textContent = count("entered") + count("served");
   document.getElementById("stat-skipped").textContent = count("skipped");
 
-  const sales = orders
-    .filter((o) => o.status !== "cancelled" && isToday(o.purchasedAt))
-    .reduce((sum, o) => sum + calcTotal(o.items), 0);
-  document.getElementById("stat-sales").textContent = yen(sales);
+  const sold = orders.filter((o) => o.status !== "cancelled" && isToday(o.purchasedAt)).length;
+  document.getElementById("stat-sold").textContent = sold;
 
   updateNavBadges(orders, currentNumber);
 }
@@ -351,7 +319,7 @@ function renderCalled() {
         <div class="order-meta">発行 ${fmtClock(order.createdAt)}</div>
       </div>
       <div class="order-actions">
-        <button class="green" data-buy="${order.id}">食券を買う</button>
+        <button class="green" data-buy="${order.id}">食券を買った</button>
         <button class="ghost small" data-skip="${order.id}">呼び飛ばし</button>
         <button class="red small" data-cancel="${order.id}">取消</button>
       </div>
@@ -362,7 +330,7 @@ function renderCalled() {
   const find = (id) => orders.find((o) => o.id === id);
 
   board.querySelectorAll("[data-buy]").forEach((b) =>
-    b.addEventListener("click", () => openBuy(find(b.dataset.buy))));
+    b.addEventListener("click", () => markPurchased(find(b.dataset.buy))));
 
   board.querySelectorAll("[data-skip]").forEach((b) =>
     b.addEventListener("click", () => setOrderStatus(find(b.dataset.skip), "skipped", staffEmail)));
@@ -397,6 +365,27 @@ function renderCallingSummary(list) {
     : `呼び出し中 ${shown}番（${nums.length}件）`;
 }
 
+// ===== 食券の購入 =====
+// 商品は選ばない。呼ばれたお客様が来たら1タップで入店待ちへ送る。
+async function markPurchased(order) {
+  if (!order) {
+    toast("対象の整理券が見つかりませんでした", "err");
+    return;
+  }
+  try {
+    await setDoc(doc(db, "orders", order.id), {
+      status: "purchased",
+      purchasedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+    logOrder(staffEmail, order.ticketNumber, "食券購入", "");
+    toast(`${order.ticketNumber}番を入店待ちにしました`);
+  } catch (e) {
+    console.error(e);
+    toast("更新に失敗しました。もう一度お試しください", "err");
+  }
+}
+
 // ===== 呼び飛ばし =====
 function renderSkipped() {
   const board = document.getElementById("skipped-board");
@@ -419,7 +408,7 @@ function renderSkipped() {
         <div class="order-meta">発行 ${fmtClock(order.createdAt)}</div>
       </div>
       <div class="order-actions">
-        <button class="green" data-buy2="${order.id}">来たので購入へ</button>
+        <button class="green" data-buy2="${order.id}">来たので入店待ちへ</button>
         <button class="red small" data-cancel2="${order.id}">取消</button>
       </div>
     `;
@@ -429,7 +418,7 @@ function renderSkipped() {
   const find = (id) => orders.find((o) => o.id === id);
 
   board.querySelectorAll("[data-buy2]").forEach((b) =>
-    b.addEventListener("click", () => openBuy(find(b.dataset.buy2))));
+    b.addEventListener("click", () => markPurchased(find(b.dataset.buy2))));
 
   board.querySelectorAll("[data-cancel2]").forEach((b) =>
     b.addEventListener("click", () => {
@@ -464,9 +453,7 @@ function renderEnter() {
         <div class="order-num">${esc(order.ticketNumber)}<small>番</small></div>
         <div class="order-meta">購入 ${fmtClock(order.purchasedAt)}</div>
       </div>
-      <div class="order-items">${itemsHtml(order.items)}</div>
       ${order.note ? `<div class="order-note">${esc(order.note)}</div>` : ""}
-      <div class="order-total">${yen(calcTotal(order.items))}</div>
       <div class="order-actions">
         <button class="green" data-enter="${order.id}">入店</button>
       </div>
@@ -505,7 +492,6 @@ function renderEntered() {
         <div class="order-num">${esc(order.ticketNumber)}<small>番</small></div>
         <div class="order-meta">入店 ${fmtClock(order.enteredAt || order.updatedAt)}</div>
       </div>
-      <div class="order-items">${itemsHtml(order.items)}</div>
       ${order.note ? `<div class="order-note">${esc(order.note)}</div>` : ""}
       <div class="order-actions">
         <button class="green" data-serve="${order.id}">提供済み</button>
@@ -521,120 +507,6 @@ function renderEntered() {
   board.querySelectorAll("[data-back]").forEach((b) =>
     b.addEventListener("click", () => setOrderStatus(find(b.dataset.back), "purchased", staffEmail)));
 }
-
-// ===== 食券購入 =====
-function openBuy(order) {
-  if (!order) return;
-  buying = {
-    id: order.id,
-    ticketNumber: order.ticketNumber,
-    cart: (order.items || []).map((i) => ({ ...i })),
-  };
-  document.getElementById("buy-title").textContent = `${order.ticketNumber}番 の食券購入`;
-  document.getElementById("buy-note").value = order.note || "";
-  document.getElementById("buy-modal").hidden = false;
-  renderBuyMenu();
-  renderBuyCart();
-}
-
-function closeBuy() {
-  buying = null;
-  document.getElementById("buy-modal").hidden = true;
-}
-
-document.getElementById("buy-cancel").addEventListener("click", closeBuy);
-
-function renderBuyMenu() {
-  const grid = document.getElementById("buy-menu");
-  grid.innerHTML = "";
-  if (menuItems.length === 0) {
-    grid.innerHTML = `<p class="empty">メニューが登録されていません。<a href="settings.html">設定</a>タブから追加してください。</p>`;
-    return;
-  }
-  menuItems.forEach((item) => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "menu-item-btn";
-    btn.innerHTML = `${esc(item.name)}<span>${yen(item.price)}</span>`;
-    btn.addEventListener("click", () => {
-      const ex = buying.cart.find((c) => c.itemId === item.id);
-      if (ex) ex.qty += 1;
-      else buying.cart.push({ itemId: item.id, name: item.name, price: Number(item.price), qty: 1 });
-      renderBuyCart();
-    });
-    grid.appendChild(btn);
-  });
-}
-
-function renderBuyCart() {
-  const list = document.getElementById("buy-cart");
-  list.innerHTML = "";
-
-  if (buying.cart.length === 0) {
-    list.innerHTML = `<p class="empty">商品を選んでください</p>`;
-  } else {
-    buying.cart.forEach((c, idx) => {
-      const row = document.createElement("div");
-      row.className = "cart-row";
-      row.innerHTML = `
-        <span>${esc(c.name)}<br><small class="muted">${yen(c.price)} × ${c.qty} = ${yen(c.price * c.qty)}</small></span>
-        <span class="qty-ctrl">
-          <button type="button" class="gray" data-m="${idx}">−</button>
-          <span class="cart-qty">${c.qty}</span>
-          <button type="button" class="gray" data-p="${idx}">＋</button>
-          <button type="button" class="red small" data-r="${idx}">削除</button>
-        </span>
-      `;
-      list.appendChild(row);
-    });
-    list.querySelectorAll("[data-p]").forEach((b) =>
-      b.addEventListener("click", () => { buying.cart[Number(b.dataset.p)].qty += 1; renderBuyCart(); }));
-    list.querySelectorAll("[data-m]").forEach((b) =>
-      b.addEventListener("click", () => {
-        const i = Number(b.dataset.m);
-        buying.cart[i].qty -= 1;
-        if (buying.cart[i].qty <= 0) buying.cart.splice(i, 1);
-        renderBuyCart();
-      }));
-    list.querySelectorAll("[data-r]").forEach((b) =>
-      b.addEventListener("click", () => { buying.cart.splice(Number(b.dataset.r), 1); renderBuyCart(); }));
-  }
-
-  document.getElementById("buy-total").textContent = yen(calcTotal(buying.cart));
-}
-
-document.getElementById("buy-confirm").addEventListener("click", async () => {
-  if (!buying) return;
-  if (buying.cart.length === 0) { toast("商品が選ばれていません", "err"); return; }
-
-  const btn = document.getElementById("buy-confirm");
-  btn.disabled = true;
-  const note = document.getElementById("buy-note").value.trim();
-  const items = buying.cart.map((c) => ({ itemId: c.itemId, name: c.name, price: c.price, qty: c.qty }));
-  const total = calcTotal(items);
-  const num = buying.ticketNumber;
-
-  try {
-    await setDoc(doc(db, "orders", buying.id), {
-      items,
-      note,
-      status: "purchased",
-      purchasedAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    }, { merge: true });
-    logOrder(
-      staffEmail, num, "食券購入",
-      items.map((i) => `${i.name}×${i.qty}`).join(", ") + ` / 合計${total}円` + (note ? ` / 備考:${note}` : "")
-    );
-    toast(`${num}番 ${yen(total)} を受け付けました`);
-    closeBuy();
-  } catch (e) {
-    console.error(e);
-    toast("購入の確定に失敗しました", "err");
-  } finally {
-    btn.disabled = false;
-  }
-});
 </script>
 
 </body>

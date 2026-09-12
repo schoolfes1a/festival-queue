@@ -44,15 +44,12 @@ const skippedEl = document.getElementById("skipped");
 const footEl = document.getElementById("foot");
 const statusEl = document.getElementById("status");
 
-// 数が少ないほど大きく出す。画面の高さを基準にするので、
-// 縦長のタブレットでも横長のモニターでもはみ出さない。
+// 番号は縦に積むので、件数で割って1件あたりの高さを決める。
+// 使える高さをおよそ62vhとみて、1件だけのときは40vhで頭打ちにする。
+// 小さくなりすぎたら段組みに逃がすので、下限は3.2vhで止める。
 function sizeFor(count) {
-  if (count <= 1) return "34vh";
-  if (count <= 2) return "28vh";
-  if (count <= 4) return "20vh";
-  if (count <= 6) return "15vh";
-  if (count <= 9) return "12vh";
-  return "9vh";
+  const size = Math.min(40, 62 / Math.max(1, count));
+  return Math.max(3.2, size).toFixed(2) + "vh";
 }
 
 function renderCalling(list) {
@@ -67,8 +64,8 @@ function renderCalling(list) {
   }
 
   numbersEl.style.setProperty("--num-size", sizeFor(list.length));
-  // 新しく呼ばれた番号ほど手前に出したいので降順
-  [...list].sort((a, b) => b - a).forEach((n) => {
+  // 縦に並ぶので、上から番号順に読めるよう昇順にする
+  [...list].sort((a, b) => a - b).forEach((n) => {
     const el = document.createElement("div");
     el.className = "display-num";
     el.textContent = n;
