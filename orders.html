@@ -50,7 +50,7 @@
 
 <script type="module">
 import {
-  db, requireStaff, mountShell, subscribeOrders, subscribeTicketState, subscribeConfig, syncBoard, updateNavBadges, setOrderStatus, removeOrder, enterAndAdvance, esc, statusLabel, fmtClock, toast, beep, createArrivalWatcher, effectiveStatus, DEFAULT_CONFIG
+  db, requireStaff, mountShell, subscribeOrders, subscribeTicketState, subscribeConfig, syncBoard, updateNavBadges, setOrderStatus, removeOrder, markEntered, esc, statusLabel, fmtClock, toast, beep, createArrivalWatcher, effectiveStatus, DEFAULT_CONFIG
 } from "./app.js";
 import {
   doc, updateDoc, serverTimestamp
@@ -217,7 +217,7 @@ function attachBoardEvents(board) {
     btn.addEventListener("click", () => {
       const order = find(btn.dataset.enter);
       if (!order) return;
-      enterAndAdvance(order, staffEmail, config, currentNumber);
+      markEntered(order, staffEmail);
     });
   });
 

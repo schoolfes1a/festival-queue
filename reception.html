@@ -157,7 +157,7 @@
 
 <script type="module">
 import {
-  db, requireStaff, mountShell, subscribeOrders, subscribeTicketState, subscribeConfig, syncBoard, setOrderStatus, setCurrentNumber, updateNavBadges, enterAndAdvance, esc, fmtClock, toast, effectiveStatus, isToday, DEFAULT_CONFIG
+  db, requireStaff, mountShell, subscribeOrders, subscribeTicketState, subscribeConfig, syncBoard, setOrderStatus, setCurrentNumber, updateNavBadges, esc, fmtClock, toast, effectiveStatus, isToday, DEFAULT_CONFIG, purchaseAndAdvance, markEntered
 } from "./app.js";
 import {
   doc, setDoc, runTransaction, serverTimestamp
@@ -180,7 +180,7 @@ requireStaff((user) => {
   subscribeConfig((c) => {
     config = c;
     document.getElementById("autocall-note").textContent = c.autoCall
-      ? `入店させると、その番号の${c.lookahead}つ先まで自動で呼び出します。`
+      ? `食券が売れると、その番号の${c.lookahead}つ先まで自動で呼び出します。`
       : "自動呼び出しは無効です。番号は手動で進めてください。";
     applyMode();
     render();
@@ -395,7 +395,7 @@ function renderCalled() {
   const find = (id) => orders.find((o) => o.id === id);
 
   board.querySelectorAll("[data-buy]").forEach((b) =>
-    b.addEventListener("click", () => markPurchased(find(b.dataset.buy))));
+    b.addEventListener("click", () => purchaseAndAdvance(find(b.dataset.buy), staffEmail, config, currentNumber)));
 
   board.querySelectorAll("[data-skip]").forEach((b) =>
     b.addEventListener("click", () => setOrderStatus(find(b.dataset.skip), "skipped", staffEmail)));
@@ -430,27 +430,6 @@ function renderCallingSummary(list) {
     : `呼び出し中 ${shown}番（${nums.length}件）`;
 }
 
-// ===== 食券の購入 =====
-// 商品は選ばない。呼ばれたお客様が来たら1タップで入店待ちへ送る。
-async function markPurchased(order) {
-  if (!order) {
-    toast("対象の整理券が見つかりませんでした", "err");
-    return;
-  }
-  try {
-    await setDoc(doc(db, "orders", order.id), {
-      status: "purchased",
-      purchasedAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    }, { merge: true });
-    logOrder(staffEmail, order.ticketNumber, "食券購入", "");
-    toast(`${order.ticketNumber}番を入店待ちにしました`);
-  } catch (e) {
-    console.error(e);
-    toast("更新に失敗しました。もう一度お試しください", "err");
-  }
-}
-
 // ===== 呼び飛ばし =====
 function renderSkipped() {
   const board = document.getElementById("skipped-board");
@@ -483,7 +462,7 @@ function renderSkipped() {
   const find = (id) => orders.find((o) => o.id === id);
 
   board.querySelectorAll("[data-buy2]").forEach((b) =>
-    b.addEventListener("click", () => markPurchased(find(b.dataset.buy2))));
+    b.addEventListener("click", () => purchaseAndAdvance(find(b.dataset.buy2), staffEmail, config, currentNumber)));
 
   board.querySelectorAll("[data-cancel2]").forEach((b) =>
     b.addEventListener("click", () => {
@@ -530,7 +509,7 @@ function renderEnter() {
     b.addEventListener("click", () => {
       const order = orders.find((o) => o.id === b.dataset.enter);
       if (!order) return;
-      enterAndAdvance(order, staffEmail, config, currentNumber);
+      markEntered(order, staffEmail);
     }));
 }
 

@@ -59,8 +59,8 @@ export function effectiveStatus(order, currentNumber) {
 // ===== 既定の設定 =====
 export const DEFAULT_CONFIG = {
   useServed: true,  // 「提供済み」の工程を使うか
-  autoCall:  true,  // 入店時に呼び出し番号を自動で進めるか
-  lookahead: 3,     // 入店した番号の何個先まで呼ぶか
+  autoCall:  true,  // 食券が売れたら呼び出し番号を自動で進めるか
+  lookahead: 2,     // 食券が売れた番号の何個先まで呼ぶか
   soloMode:  false, // 受付1台で入店・提供まで全部やるか
 };
 
@@ -372,13 +372,44 @@ export async function setCurrentNumber(value, staffEmail, reason) {
   }
 }
 
-// 入店させたとき、その番号の lookahead 個先まで自動で呼ぶ。
-// 既に先を呼んでいる場合は戻さない。
-export async function enterAndAdvance(order, staffEmail, config, currentNumber) {
-  await setOrderStatus(order, "entered", staffEmail, { enteredAt: serverTimestamp() });
-  if (!config.autoCall) return;
-  const target = Number(order.ticketNumber) + Number(config.lookahead || 0);
-  if (target > Number(currentNumber || 0)) {
-    await setCurrentNumber(target, staffEmail, "入店にあわせて自動で呼び出し");
+// 食券が売れたら入店待ちへ送り、その番号の lookahead 個先まで自動で呼ぶ。
+//
+// 入店したかどうかは現場で追えないため、列が進んだ合図として
+// 「食券が売れたこと」を使う。既に先を呼んでいる場合は戻さない。
+export async function purchaseAndAdvance(order, staffEmail, config, currentNumber) {
+  if (!order) {
+    toast("対象の整理券が見つかりませんでした", "err");
+    return;
   }
+  try {
+    await updateDoc(doc(db, "orders", order.id), {
+      status: "purchased",
+      purchasedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    logOrder(staffEmail, order.ticketNumber, "食券購入", "");
+    toast(`${order.ticketNumber}番を入店待ちにしました`);
+  } catch (e) {
+    console.error(e);
+    toast("更新に失敗しました。もう一度お試しください", "err");
+    return;
+  }
+
+  const target = nextCallTarget(order.ticketNumber, config, currentNumber);
+  if (target != null) {
+    await setCurrentNumber(target, staffEmail, "食券購入にあわせて自動で呼び出し");
+  }
+}
+
+// 自動呼び出しで次に呼ぶべき番号。進める必要がなければ null を返す。
+// 「売れた番号 + 先読み数」だが、すでにそこまで呼んでいるなら戻さない。
+export function nextCallTarget(ticketNumber, config, currentNumber) {
+  if (!config || !config.autoCall) return null;
+  const target = Number(ticketNumber) + Number(config.lookahead || 0);
+  return target > Number(currentNumber || 0) ? target : null;
+}
+
+// 入店の記録。自動呼び出しはここでは行わない。
+export async function markEntered(order, staffEmail) {
+  await setOrderStatus(order, "entered", staffEmail, { enteredAt: serverTimestamp() });
 }

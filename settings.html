@@ -38,8 +38,8 @@
     <label class="switch-row">
       <input type="checkbox" id="cfg-autocall">
       <span>
-        <strong>入店にあわせて自動で呼び出す</strong>
-        <small>入店させると、その整理券番号の指定した数だけ先まで呼び出し番号が進みます。すでに先を呼んでいるときは戻しません。</small>
+        <strong>食券が売れたら自動で次を呼ぶ</strong>
+        <small>「食券を買った」を押すと、その整理券番号の指定した数だけ先まで呼び出し番号が進みます。すでに先を呼んでいるときは戻しません。入店の操作では進みません。</small>
       </span>
     </label>
 
@@ -191,7 +191,7 @@ function updatePreview() {
   const n = Number(document.getElementById("cfg-lookahead").value || 0);
   const on = document.getElementById("cfg-autocall").checked;
   document.getElementById("cfg-preview").textContent = on
-    ? `例：10番のお客様を入店させると、呼び出し番号が${10 + n}番まで進みます。`
+    ? `例：10番のお客様が食券を買うと、呼び出し番号が${10 + n}番まで進みます。`
     : "自動呼び出しは無効です。呼び出し番号は受付画面で手動で進めます。";
 }
 
@@ -221,7 +221,7 @@ document.getElementById("cfg-save").addEventListener("click", () => {
     return;
   }
   saveConfig({ lookahead: n }, staffEmail);
-  toast(`入店した番号の${n}つ先まで呼ぶ設定にしました`);
+  toast(`食券が売れた番号の${n}つ先まで呼ぶ設定にしました`);
 });
 
 // ===== メニュー =====
