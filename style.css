@@ -949,12 +949,18 @@ body.display-page {
   margin: 0 auto 20px;
   text-align: center;
 }
+/* お客様画面はロゴと同じ生成り色にして、ロゴが紙に見えるようにする */
+body.guest-page { --bg: #fdf8f2; }
+
 /* ロゴは既定で非表示。読み込めたときだけ出すので、
-   ファイルが無くても壊れた画像の印は出ない。 */
+   ファイルが無くても壊れた画像の印は出ない。
+   画像は正方形だが絵は中央の帯だけなので、上下を切り取って出す。 */
 .site-logo {
   display: none;
-  width: min(340px, 78%);
-  height: auto;
+  width: min(430px, 94%);
+  aspect-ratio: 2.6 / 1;
+  object-fit: cover;
+  object-position: center;
   margin: 0 auto;
 }
 .site-head.has-logo .site-logo { display: block; }
