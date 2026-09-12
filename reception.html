@@ -50,6 +50,15 @@
           <div class="stat-label">次に発行する番号</div>
         </div>
         <button id="issue-btn" class="green big block">整理券を発行する</button>
+        <div class="bulk-call">
+          <span class="bulk-call-label">まとめて発行</span>
+          <button class="ghost small" data-issue-by="5">5枚</button>
+          <button class="ghost small" data-issue-by="10">10枚</button>
+        </div>
+        <div class="inline-form" style="margin-top:8px;">
+          <input type="number" id="issue-to-input" placeholder="番号を指定" inputmode="numeric">
+          <button id="issue-to-btn" class="ghost small">ここまで発行</button>
+        </div>
       </section>
 
       <section class="card">
@@ -141,7 +150,7 @@
   <div class="modal-box" style="text-align:center;">
     <h2>整理券番号</h2>
     <div class="big-number" id="issue-modal-number">-</div>
-    <p class="muted">この番号をお客様にお渡しください</p>
+    <p class="muted" id="issue-modal-note">この番号をお客様にお渡しください</p>
     <button id="issue-modal-close" class="green big block">閉じる</button>
   </div>
 </div>
@@ -252,43 +261,99 @@ document.getElementById("manual-number-btn").addEventListener("click", () => {
 });
 
 // ===== 整理券の発行 =====
-document.getElementById("issue-btn").addEventListener("click", async () => {
+// 1枚ずつでも、枚数指定でも、「〇番まで」でも同じ処理を通す。
+// 番号の採番と整理券の作成を1つのトランザクションにまとめるので、
+// 途中で失敗しても番号だけ進んで中身が無い、という状態にならない。
+const MAX_BULK = 100;
+
+async function issueTickets({ count = null, to = null }) {
   if (issuing) return;
-  const btn = document.getElementById("issue-btn");
   issuing = true;
-  btn.disabled = true;
-  btn.textContent = "発行中…";
+  setIssueButtonsEnabled(false);
 
   try {
     const stateRef = doc(db, "state", "ticket");
-    let newNumber;
+    let from, last;
+
     await runTransaction(db, async (tx) => {
       const snap = await tx.get(stateRef);
       const current = snap.exists() ? Number(snap.data().latestTicket || 0) : 0;
-      newNumber = current + 1;
-      tx.set(stateRef, { latestTicket: newNumber }, { merge: true });
+      from = current + 1;
+      last = to != null ? Number(to) : from + (count != null ? count : 1) - 1;
+
+      if (last < from) throw new Error("BEHIND");
+      if (last - from + 1 > MAX_BULK) throw new Error("TOO_MANY");
+
+      for (let n = from; n <= last; n++) {
+        tx.set(doc(db, "orders", String(n)), {
+          ticketNumber: n,
+          items: [],
+          note: "",
+          status: "issued",
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      }
+      tx.set(stateRef, { latestTicket: last }, { merge: true });
     });
 
-    await setDoc(doc(db, "orders", String(newNumber)), {
-      ticketNumber: newNumber,
-      items: [],
-      note: "",
-      status: "issued",
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
-    logOrder(staffEmail, newNumber, "整理券発行", "");
+    const n = last - from + 1;
+    logOrder(staffEmail, from, "整理券発行", n > 1 ? `${from}〜${last}番の${n}枚` : "");
 
-    document.getElementById("issue-modal-number").textContent = newNumber;
+    const numEl = document.getElementById("issue-modal-number");
+    numEl.textContent = n > 1 ? `${from}〜${last}` : String(from);
+    numEl.classList.toggle("is-range", n > 1);
+    document.getElementById("issue-modal-note").textContent = n > 1
+      ? `${n}枚を発行しました。順番にお渡しください`
+      : "この番号をお客様にお渡しください";
     document.getElementById("issue-modal").hidden = false;
   } catch (e) {
-    console.error(e);
-    toast("発行に失敗しました。通信を確認してもう一度お試しください", "err");
+    if (e.message === "BEHIND") {
+      toast("すでに発行済みの番号です。それより大きい番号を指定してください", "err");
+    } else if (e.message === "TOO_MANY") {
+      toast(`一度に発行できるのは${MAX_BULK}枚までです`, "err");
+    } else {
+      console.error(e);
+      toast("発行に失敗しました。通信を確認してもう一度お試しください", "err");
+    }
   } finally {
     issuing = false;
-    btn.disabled = false;
-    btn.textContent = "整理券を発行する";
+    setIssueButtonsEnabled(true);
   }
+}
+
+function setIssueButtonsEnabled(on) {
+  document.getElementById("issue-btn").disabled = !on;
+  document.getElementById("issue-to-btn").disabled = !on;
+  document.querySelectorAll("[data-issue-by]").forEach((b) => { b.disabled = !on; });
+  document.getElementById("issue-btn").textContent = on ? "整理券を発行する" : "発行中…";
+}
+
+document.getElementById("issue-btn").addEventListener("click", () => issueTickets({ count: 1 }));
+
+document.querySelectorAll("[data-issue-by]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const n = Number(btn.dataset.issueBy);
+    if (!confirm(`整理券を${n}枚まとめて発行します。よろしいですか？`)) return;
+    issueTickets({ count: n });
+  });
+});
+
+document.getElementById("issue-to-btn").addEventListener("click", () => {
+  const input = document.getElementById("issue-to-input");
+  const target = Number(input.value);
+  if (!target || target < 1) {
+    toast("1以上の番号を入力してください", "err");
+    return;
+  }
+  if (target <= latestTicket) {
+    toast(`${target}番はすでに発行済みです。それより大きい番号を指定してください`, "err");
+    return;
+  }
+  const n = target - latestTicket;
+  if (!confirm(`${latestTicket + 1}番から${target}番まで、${n}枚をまとめて発行します。よろしいですか？`)) return;
+  issueTickets({ to: target });
+  input.value = "";
 });
 
 document.getElementById("issue-modal-close").addEventListener("click", () => {
